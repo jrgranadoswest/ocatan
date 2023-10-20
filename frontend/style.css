@@ -1,0 +1,14 @@
+* {
+    margin: 0;
+    padding: 0;
+    /* have box sizing include everything except margin */
+    box-sizing: border-box;
+}
+
+canvas {
+    position: absolute;
+    background: url('static/img/water_bg.jpg');  /* Faster than drawing over and over on canvas */
+    background-size: 100% 100%;
+    top: 0;
+    left: 0;
+}
