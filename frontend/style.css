@@ -3,6 +3,7 @@
     padding: 0;
     /* have box sizing include everything except margin */
     box-sizing: border-box;
+    background-color: #00a5ff;
 }
 
 canvas {
