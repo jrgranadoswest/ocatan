@@ -1,1 +1,4 @@
 venv/
+games/
+__pycache__/
+.idea/

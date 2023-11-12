@@ -10,8 +10,8 @@ const ASPECT_RATIO = 16/9;
 const DRAWING_SCALE = 16;
 
 const IMG_PATH = './static/img/';
-const RES_IMGS = ['desert_hex.png', 'pasture_hex.png', 'forest_hex.png', 
-    'wheat_hex.png', 'brick_hex.png', 'mountains_hex.png'];
+const RES_IMGS = ['brick_hex.png', 'grain_hex.png', 'lumber_hex.png', 
+    'ore_hex.png', 'wool_hex.png', 'desert_hex.png'];
 const DEV_IMGS = ['knight_dev.png', 'victory_pnt_dev.png', 'road_dev.png', 
     'monopoly_dev.png', 'year_of_plenty_dev.png'];
 // Number of dots shown for each dice sum 
@@ -21,23 +21,53 @@ const RLENS = [3, 4, 5, 4, 3];  // row lengths
 let canvas;
 let ctx;
 let gameBoard;
+let initialized_board = false;
 
+const RMAP = [
+    0,
+    0b00000000000000010101010101000000,
+    0b00000000000000100010001000100000,
+    0b00000000000001010101010101010000,
+    0b00000000000010001000100010001000,
+    0b00000000000101010101010101010100,
+    0b00000000001000100010001000100010,
+    0b00000000000101010101010101010100,
+    0b00000000000010001000100010001000,
+    0b00000000000001010101010101010000,
+    0b00000000000000100010001000100000,
+    0b00000000000000010101010101000000,
+    0]
+const BMAP = [
+    0,
+    0b00000000000000101010101010100000,
+    0,
+    0b00000000000010101010101010101000,
+    0,
+    0b00000000001010101010101010101010,
+    0,
+    0b00000000001010101010101010101010,
+    0,
+    0b00000000000010101010101010101000,
+    0,
+    0b00000000000000101010101010100000,
+    0,
+]
 // Load images
 /*
-    * Desert 'D'
-    * Pasture (Wool) 'P'
-    * Forest (Lumber) 'F'
-    * Field (Grain) 'G'
     * Brick 'B'
-    * Mountain (Ore) 'M'
+    * Grain 'G'
+    * Lumber 'L'
+    * Ore 'O'
+    * Wool 'W'
+    * Desert 'D'
     */
 const HEX_IMAGES = {
     "B": new Image(),
-    "D": new Image(),
     "G": new Image(),
-    "F": new Image(),
-    "M": new Image(),
-    "P": new Image(),
+    "L": new Image(),
+    "O": new Image(),
+    "W": new Image(),
+    "D": new Image(),
 };
 Object.keys(HEX_IMAGES).forEach((key, idx) => {
     HEX_IMAGES[key].src = IMG_PATH + RES_IMGS[idx];
@@ -45,9 +75,9 @@ Object.keys(HEX_IMAGES).forEach((key, idx) => {
 const RES_NAMES = {
     "B": "Brick",
     "G": "Grain",
-    "F": "Lumber",
-    "M": "Ore",
-    "P": "Wool",
+    "L": "Lumber",
+    "O": "Ore",
+    "W": "Wool",
 }
 const DEV_IMAGES = {
     "K": new Image(),
@@ -81,13 +111,15 @@ const HAND_OFFSET = [0, 21, 42, 63]
 let brd_s_o = {
     // Static string states not used for internal game state representation
     // Board state representation (currently static, filled with arbitrary board)
-    "hex_state": "PGBPGMFMFDFGBPBGFPM",
+    // "hex_state": "PGBPGMFMFDFGBPBGFPM",
+    "hex_state": "WGBWGOLOLDLGBWBGLWO",
+
     // hex codes for different chance values, 0 means no token (desert)
     tkn_state: "B655438830B9A46C92A",
     // orientation values for ports at each hex idx, 6 means no port
     port_orients: "6343665266661665610",
     // port types for port at each hex idx, 6: no port
-    port_type_state: "6005661066664663620",
+    port_type_state: "6554660566663662615", //# "6005661066664663620",
 
     // Varying game state elements
     "robber_loc": 9,
@@ -121,35 +153,6 @@ let brd_s_o = {
            8,
            ],
 
-    rmap: [
-       0, 
-        0b00000000000000010101010101000000,
-        0b00000000000000100010001000100000, 
-        0b00000000000001010101010101010000,
-        0b00000000000010001000100010001000, 
-        0b00000000000101010101010101010100, 
-        0b00000000001000100010001000100010,
-        0b00000000000101010101010101010100, 
-        0b00000000000010001000100010001000, 
-        0b00000000000001010101010101010000,
-        0b00000000000000100010001000100000, 
-        0b00000000000000010101010101000000, 
-        0],
-    bmap: [
-        0,
-        0b00000000000000101010101010100000,
-        0,
-        0b00000000000010101010101010101000,
-        0,
-        0b00000000001010101010101010101010, 
-        0,
-        0b00000000001010101010101010101010, 
-        0,
-        0b00000000000010101010101010101000,
-        0,
-        0b00000000000000101010101010100000,
-        0,
-    ],
     btypemap: [
         0,
         0b00000000000000000010000000000000,
@@ -226,6 +229,11 @@ let brd_s_o = {
         0,
     ],
 }
+// Track mouse position
+const mouse = {
+    x: 0,
+    y: 0,
+}
 
 /* --------------------- Main Display Logic --------------------- */
 // window.onload waits for whole page to load before running; as opposed to 
@@ -235,6 +243,7 @@ window.onload = function () {
     gen_socket_listeners(socket);
 
     canvas = document.getElementById("canvas1");
+    ctx = canvas.getContext('2d');
     // Construct square of maximum size
     if (window.innerWidth < window.innerHeight) {
         canvas.width = window.innerWidth;
@@ -248,6 +257,41 @@ window.onload = function () {
 }
 window.addEventListener('resize', function () {
     gameBoard.resize();
+});
+let curr_hov = false;
+let prev_hov = false;
+window.addEventListener('mousemove', function(e) {
+    mouse.x = e.x;
+    mouse.y = e.y;
+    let gameX = mouse.x*gameBoard.wrFactor;
+    let gameY = mouse.y*gameBoard.hrFactor;
+    prev_hov = curr_hov;
+    curr_hov = false;
+    // console.log(mouse.x*gameBoard.wrFactor, mouse.y*gameBoard.hrFactor);
+    for(let i = 0; i < gameBoard.port_locs.length; i++) {
+        if((gameBoard.port_locs[i].x-gameX)**2 + (gameBoard.port_locs[i].y-gameY)**2 < 300) {
+            // TODO: implement logic to identify clicked game objects
+            gameBoard.setHover(gameBoard.port_locs[i].x, gameBoard.port_locs[i].y, "obj_id_temp");
+            gameBoard.draw();
+            curr_hov = true;
+            break;
+        }
+    }
+    if(!curr_hov && prev_hov) {
+        gameBoard.setHover(-1, -1, "");
+        gameBoard.draw();  // Eliminate hold hover effect
+    }
+});
+window.addEventListener("click", function(e) {
+    mouse.x = e.x;
+    mouse.y = e.y;
+    let gameX = mouse.x*gameBoard.wrFactor;
+    let gameY = mouse.y*gameBoard.hrFactor;
+    //console.log(mouse.x*gameBoard.wrFactor, mouse.y*gameBoard.hrFactor);
+    if(gameBoard.hoverX > -1 && gameBoard.hoverY > -1) {
+        console.log("Clicked on game element: " + gameBoard.hover_id);
+        // Send message to websocket server to conduct move
+    }
 });
 
 /*
@@ -263,7 +307,9 @@ class GameBoard {
         this.renderWidth = renderWidth;
         this.renderHeight = renderHeight;
         this.wFactor = this.canvas.width / this.renderWidth;
+        this.wrFactor = this.renderWidth / this.canvas.width;
         this.hFactor = this.canvas.height / this.renderHeight;
+        this.hrFactor = this.renderHeight / this.canvas.height;
         this.components = [];
         this.staticComps = [];
         this.borderWidth = Math.floor(this.renderWidth * BORDER_RATIO);  // err lower
@@ -271,7 +317,32 @@ class GameBoard {
         this.bodyHeight = this.renderHeight - this.borderWidth * 2;
         this.hexW = this.bodyHeight / 5;
         this.tileH = this.hexW * (2 / Math.sqrt(3));
+        this.port_locs = [
+            { x: 975, y: 925 },
+            { x: 640, y: 920 },
+            { x: 1220, y: 780 },
+            { x: 465, y: 635 },
+            { x: 1385, y: 495 },
+            { x: 1220, y: 205 },
+            { x: 465, y: 355 },
+            { x: 975, y: 45 },
+            { x: 635, y: 45 },
+        ]
         // Build board
+        // TODO: uncomment below to initialize board before establishing connection to server (testing purposes)
+        // this.reinit()
+        this.hoverX = -1;
+        this.hoverY = -1;
+        this.hover_id = "";
+    }
+    setHover(x, y, obj_id) {
+        this.hoverX = x;
+        this.hoverY = y;
+        this.hover_id = obj_id;
+    }
+    reinit() {
+        this.components = [];
+        this.staticComps = [];
         this.#addStaticBoardComponents();
         this.addComponents();
     }
@@ -283,6 +354,15 @@ class GameBoard {
         }
         for (let i = 0; i < this.components.length; i++) {
             this.components[i].draw(this.ctx, this.wFactor, this.hFactor);
+        }
+        if(this.hoverX > -1 && this.hoverY > -1) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(this.hoverX * this.wFactor, this.hoverY * this.hFactor, 25*this.wFactor, 0, 2 * Math.PI);
+            ctx.fillStyle = "rgba(164, 164, 164, 0.7)";
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
         }
     }
     resize() {
@@ -296,7 +376,9 @@ class GameBoard {
         }
         // Set scaling factors to redraw game elements at proper size
         this.wFactor = this.canvas.width / this.renderWidth;
+        this.wrFactor = this.renderWidth / this.canvas.width;
         this.hFactor = this.canvas.height / this.renderHeight;
+        this.hrFactor = this.renderHeight / this.canvas.height;
         this.draw();
     }
     addComponent(item) {
@@ -369,7 +451,7 @@ class GameBoard {
         const cX = this.renderWidth/2;
         const cY = this.renderHeight/2;
         let rOrient = -1;
-        for(let r = 0; r < brd_s_o.rmap.length; r++) {
+        for(let r = 0; r < RMAP.length; r++) {
             for(let c = 0; c < N_COLS; c++) {
                 let col = -1;
                 if((brd_s_o.rbmap0[r] & (1<<c)) != 0) {
@@ -382,7 +464,7 @@ class GameBoard {
                     col = 3;
                 }
                 if(col > -1) {
-                    if((brd_s_o.rmap[r] & (1<<c)) != 0) {
+                    if((RMAP[r] & (1<<c)) != 0) {
                         sx = cX + (11-c)*this.hexW*0.25;
                         sy = cY + (r-6)*this.tileH*0.375;
                         if(r%2==0) {
@@ -484,8 +566,7 @@ class ChanceToken {
         ctx.save();
 
         // Draw dice sum
-        const fontSize = 36 * wFactor;
-        ctx.font = `bold ${fontSize}px Arial`;
+        ctx.font = `bold ${36*wFactor}px Arial`;
         ctx.fillStyle = (this.dv == 6 || this.dv == 8) ? 'red' : 'black';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -622,22 +703,22 @@ class Port {
         this.beachColor = "#eace9c";
         switch (porttype) {
             case 0:
-                this.porttext = "3:1";
-                break;
-            case 1:
                 this.porttext = "Brick\n2:1"
                 break;
-            case 2:
+            case 1:
                 this.porttext = "Grain\n2:1"
                 break;
-            case 3:
+            case 2:
                 this.porttext = "Lumber\n2:1"
                 break;
-            case 4:
+            case 3:
                 this.porttext = "Ore\n2:1"
                 break;
-            case 5:
+            case 4:
                 this.porttext = "Wool\n2:1"
+                break;
+            case 5:
+                this.porttext = "3:1";
                 break;
         }
         this.hexSideLen = hexSideLen;
@@ -688,8 +769,7 @@ class Port {
             wFactor*portShipSize, wFactor*portShipSize
         );
         // Draw port text
-        const fontSize = 20 * wFactor;
-        ctx.font = `bold ${fontSize}px Arial`;
+        ctx.font = `bold ${20 * wFactor}px Arial`;
         ctx.fillStyle = 'black';
         ctx.textAlign = 'center';
         const lines = this.porttext.split('\n');
@@ -903,8 +983,7 @@ class PlayerHand {
         this.dCardStacks.forEach((cStack) => {cStack.draw(ctx, wFactor, hFactor); });
         this.vp_cards.forEach((card) => {card.draw(ctx, wFactor, hFactor); });
         if(this.vps > 0) {
-            const fontSize = DRAWING_SCALE *1.2 * wFactor;
-            ctx.font = `bold ${fontSize}px Arial`;
+            ctx.font = `bold ${DRAWING_SCALE * 1.2 * wFactor}px Arial`;
             ctx.fillStyle = 'black';
             ctx.textAlign = 'left';
             ctx.textBaseline = 'bottom';
@@ -973,8 +1052,7 @@ class CardStack {
             ctx.restore();
             ctx.save();
             // Number of cards
-            const fontSize = this.cW*0.2 * wFactor;
-            ctx.font = `bold ${fontSize}px Arial`;
+            ctx.font = `bold ${this.cW*0.2*wFactor}px Arial`;
             ctx.fillStyle = 'black';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -1006,8 +1084,7 @@ class ResourceCard {
             ctx.drawImage(this.image, this.x * wFactor, (this.y+3) * hFactor, (this.width-1) * wFactor, (this.width-1) * wFactor);
         }
         // Write resource name
-        const fontSize = this.width*0.21 * wFactor;
-        ctx.font = `bold ${fontSize}px Arial`;
+        ctx.font = `bold ${this.width*0.21*wFactor}px Arial`;
         ctx.fillStyle = 'black';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
@@ -1241,6 +1318,10 @@ function gen_socket_listeners(socket) {
             console.log(event);
         }
         clearInterval(pingInterval);
+        if (initialized_board) { // only show lost connection if board was initialized
+            let lostconnectDiv = document.getElementById("lostconnect_div");
+            lostconnectDiv.style.display = 'block';
+        }
     };
     socket.onerror = (error) => {
         console.error("WebSocket error: ", error);
@@ -1249,6 +1330,28 @@ function gen_socket_listeners(socket) {
     socket.onmessage = (event) => {
         let data = JSON.parse(event.data);
         switch(data.type) {
+            case "pong":
+                console.log("Received pong.");
+                // On first pong, request initial board state
+                if(!initialized_board) {
+                    console.log("requesting newly initialized board");
+                    socket.send(JSON.stringify({"type": "new_board_request"}));
+                    initialized_board = true;
+                }
+                break;
+            case "new_board":
+                // Once connected, hide loading animation
+                console.log("Received new board.");
+                Object.keys(data).forEach((key) => {
+                    if(key in brd_s_o) {
+                        brd_s_o[key] = data[key];
+                        console.log(key, data[key]);
+                    }
+                });
+                let loadingDiv = document.getElementById("loading_div");
+                loadingDiv.style.display = 'none';
+                gameBoard.reinit();
+                gameBoard.draw();
             case "board_update":
                 let true_update = false;
                 Object.keys(data).forEach((key) => {
@@ -1273,4 +1376,3 @@ function gen_socket_listeners(socket) {
         socket.send(JSON.stringify({"type": "ping"}))
     }, PING_INTERVAL*1000);
 }
-

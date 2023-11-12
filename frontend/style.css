@@ -13,3 +13,56 @@ canvas {
     top: 0;
     left: 0;
 }
+
+#loading_div, #lostconnect_div {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    background-color: rgba(255, 255, 255, 0.8);
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    z-index: 1;
+}
+
+#lostconnect_div p {
+    color: red;
+}
+#loading_div {
+    display: block;
+    height: 160px;
+}
+
+#loading_div p, #lostconnect_div p {
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    background: none;
+}
+
+/* Basic loading animation */
+#loading_spinner {
+    position: absolute;
+    left: 50%;
+    /*border: 8px solid #f3f3f3; !* Light gray border *!*/
+    /*border-top: 8px solid #00a5ff;*/
+    /*border-radius: 50%;*/
+    /*width: 50px;*/
+    /*height: 50px;*/
+    background: none;
+    width: 100px; /* Set your desired width */
+    height: 100px; /* Set your desired height */
+    animation: spin 2s linear infinite;
+    z-index: 50;
+}
+@keyframes spin {
+    0% {
+        transform: translateX(-50%) rotate(0deg);
+    }
+    100% {
+        transform: translateX(-50%) rotate(360deg);
+    }
+}
