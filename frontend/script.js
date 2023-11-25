@@ -3,7 +3,7 @@
 // take some board representation & display it
 /* --------------------- CONSTANTS & GLOBALS --------------------- */
 const SERVE_URL = "ws://localhost:8080";
-const PING_INTERVAL = 2; // seconds
+// const PING_INTERVAL = 2; // seconds
 const TOKEN_RATIO = 1 / 16;  // ratio of chance token size to board size
 const BORDER_RATIO = 0.05; // ratio of border to board size
 const ASPECT_RATIO = 16/9;
@@ -23,6 +23,27 @@ let ctx;
 let gameBoard;
 let initialized_board = false;
 
+const map_hex_idx_to_row_col = [
+    [10, 7],
+    [10, 11],
+    [10, 15],
+    [8, 5],
+    [8, 9],
+    [8, 13],
+    [8, 17],
+    [6, 3],
+    [6, 7],
+    [6, 11],
+    [6, 15],
+    [6, 19],
+    [4, 5],
+    [4, 9],
+    [4, 13],
+    [4, 17],
+    [2, 7],
+    [2, 11],
+    [2, 15],
+]
 const RMAP = [
     0,
     0b00000000000000010101010101000000,
@@ -37,7 +58,7 @@ const RMAP = [
     0b00000000000000100010001000100000,
     0b00000000000000010101010101000000,
     0]
-const BMAP = [
+/* const BMAP = [
     0,
     0b00000000000000101010101010100000,
     0,
@@ -51,7 +72,7 @@ const BMAP = [
     0,
     0b00000000000000101010101010100000,
     0,
-]
+] */
 // Load images
 /*
     * Brick 'B'
@@ -106,20 +127,23 @@ const PORT_DOCKS = new Image();
 PORT_DOCKS.src = IMG_PATH + 'portdocks.png';
 
 const COLORS = ["#00ffff", "#ffffff", "#a500ff", "#00ffa5"];
-const HAND_OFFSET = [0, 21, 42, 63]
+const HAND_OFFSET = [0, 25, 50, 75]
 // Current representation of current board state (read: board state object)
 let brd_s_o = {
+    "game_cycle_status": 0,
+    "num_players": 4,
     // Static string states not used for internal game state representation
     // Board state representation (currently static, filled with arbitrary board)
     // "hex_state": "PGBPGMFMFDFGBPBGFPM",
+    "curr_turn": 0,
     "hex_state": "WGBWGOLOLDLGBWBGLWO",
 
     // hex codes for different chance values, 0 means no token (desert)
     tkn_state: "B655438830B9A46C92A",
     // orientation values for ports at each hex idx, 6 means no port
     port_orients: "6343665266661665610",
-    // port types for port at each hex idx, 6: no port
-    port_type_state: "6554660566663662615", //# "6005661066664663620",
+    // port types for port at each above non-6 hex idx
+    port_type_state: "554053215", //# "6005661066664663620",
 
     // Varying game state elements
     "robber_loc": 9,
@@ -244,12 +268,12 @@ window.onload = function () {
 
     canvas = document.getElementById("canvas1");
     ctx = canvas.getContext('2d');
-    // Construct square of maximum size
-    if (window.innerWidth < window.innerHeight) {
+    // Establish dimensions of canvas; maximize screen space
+    if (window.innerWidth < window.innerHeight*ASPECT_RATIO) {
         canvas.width = window.innerWidth;
-        canvas.height = window.innerWidth;
+        canvas.height = window.innerWidth/ASPECT_RATIO;
     } else {
-        canvas.width = window.innerHeight;
+        canvas.width = window.innerHeight*ASPECT_RATIO;
         canvas.height = window.innerHeight;
     }
     gameBoard = new GameBoard(canvas, 1000*ASPECT_RATIO, 1000);  // arbitrary vals
@@ -258,42 +282,63 @@ window.onload = function () {
 window.addEventListener('resize', function () {
     gameBoard.resize();
 });
-let curr_hov = false;
-let prev_hov = false;
 window.addEventListener('mousemove', function(e) {
     mouse.x = e.x;
     mouse.y = e.y;
-    let gameX = mouse.x*gameBoard.wrFactor;
-    let gameY = mouse.y*gameBoard.hrFactor;
-    prev_hov = curr_hov;
-    curr_hov = false;
-    // console.log(mouse.x*gameBoard.wrFactor, mouse.y*gameBoard.hrFactor);
-    for(let i = 0; i < gameBoard.port_locs.length; i++) {
-        if((gameBoard.port_locs[i].x-gameX)**2 + (gameBoard.port_locs[i].y-gameY)**2 < 300) {
-            // TODO: implement logic to identify clicked game objects
-            gameBoard.setHover(gameBoard.port_locs[i].x, gameBoard.port_locs[i].y, "obj_id_temp");
-            gameBoard.draw();
-            curr_hov = true;
-            break;
-        }
-    }
-    if(!curr_hov && prev_hov) {
-        gameBoard.setHover(-1, -1, "");
-        gameBoard.draw();  // Eliminate hold hover effect
-    }
-});
-window.addEventListener("click", function(e) {
-    mouse.x = e.x;
-    mouse.y = e.y;
-    let gameX = mouse.x*gameBoard.wrFactor;
-    let gameY = mouse.y*gameBoard.hrFactor;
-    //console.log(mouse.x*gameBoard.wrFactor, mouse.y*gameBoard.hrFactor);
-    if(gameBoard.hoverX > -1 && gameBoard.hoverY > -1) {
-        console.log("Clicked on game element: " + gameBoard.hover_id);
-        // Send message to websocket server to conduct move
-    }
+    // TODO: when hovering over a game element, highlight it
 });
 
+// function handleActButtonClick(event) {
+// }
+
+const map_hex_to_unique_edges = [
+    6, 6, 0,
+    4, 1, 1, 5,
+    6, 6, 6, 6, 0,
+    3, 1, 1, 2,
+    6, 6, 0,
+    ];
+const map_hex_to_unique_vertices = [
+    6, 6, 0,
+    3, 5, 5, 4,
+    6, 6, 6, 6, 0,
+    2, 5, 5, 1,
+    6, 6, 0,
+    ];
+
+function hex_rc_to_edge_rc(hex_rc, side_idx) {
+    switch(side_idx) {
+        case 0:
+            return [hex_rc[0]-1, hex_rc[1]+1];
+        case 1:
+            return [hex_rc[0]-1, hex_rc[1]-1];
+        case 2:
+            return [hex_rc[0], hex_rc[1]-2];
+        case 3:
+            return [hex_rc[0]+1, hex_rc[1]-1];
+        case 4:
+            return [hex_rc[0]+1, hex_rc[1]+1];
+        case 5:
+            return [hex_rc[0], hex_rc[1]+2];
+    }
+}
+
+function hex_rc_to_vertex_rc(hex_rc, vertex_idx) {
+    switch(vertex_idx) {
+        case 0:
+            return [hex_rc[0]-1, hex_rc[1]+2];
+        case 1:
+            return [hex_rc[0]-1, hex_rc[1]];
+        case 2:
+            return [hex_rc[0]-1, hex_rc[1]-2];
+        case 3:
+            return [hex_rc[0]+1, hex_rc[1]-2];
+        case 4:
+            return [hex_rc[0]+1, hex_rc[1]];
+        case 5:
+            return [hex_rc[0]+1, hex_rc[1]+2];
+    }
+}
 /*
     * Class representing game board & all game components to render
     * Contains arrays of all board subcomponents to render
@@ -313,32 +358,138 @@ class GameBoard {
         this.components = [];
         this.staticComps = [];
         this.borderWidth = Math.floor(this.renderWidth * BORDER_RATIO);  // err lower
-        this.bodyWidth = this.renderWidth - this.borderWidth * 2;
+        // this.bodyWidth = this.renderWidth - this.borderWidth * 2;
         this.bodyHeight = this.renderHeight - this.borderWidth * 2;
         this.hexW = this.bodyHeight / 5;
         this.tileH = this.hexW * (2 / Math.sqrt(3));
-        this.port_locs = [
-            { x: 975, y: 925 },
-            { x: 640, y: 920 },
-            { x: 1220, y: 780 },
-            { x: 465, y: 635 },
-            { x: 1385, y: 495 },
-            { x: 1220, y: 205 },
-            { x: 465, y: 355 },
-            { x: 975, y: 45 },
-            { x: 635, y: 45 },
-        ]
-        // Build board
-        // TODO: uncomment below to initialize board before establishing connection to server (testing purposes)
+        this.rowH = this.tileH * 0.75;
+        // uncomment below line to initialize board before establishing connection to server (testing purposes)
         // this.reinit()
-        this.hoverX = -1;
-        this.hoverY = -1;
-        this.hover_id = "";
-    }
-    setHover(x, y, obj_id) {
-        this.hoverX = x;
-        this.hoverY = y;
-        this.hover_id = obj_id;
+        this.active_action = "";
+        // TODO: find better method of click detection
+        // TODO: create hover lists for each type of clickable item (ports, hexes, vertices, edges)
+        this.hoverLists = {
+            // Ports list
+            "trade_btn": [],
+            "trade4_btn": [],
+                // Ports (for trading)
+                /*{x: 975, y: 925, r: 1, c: 0, id: "p"},
+                {x: 640, y: 920, r: 1, c: 1, id: "p"},
+                {x: 1220, y: 780, r: 1, c: 2, id: "p"},
+                {x: 465, y: 635, r: 1, c: 3, id: "p"},
+                {x: 1385, y: 495, r: 1, c: 4, id: "p"},
+                {x: 1220, y: 205, r: 1, c: 5, id: "p"},
+                {x: 465, y: 355, r: 1, c: 6, id: "p"},
+                {x: 975, y: 45, r: 1, c: 7, id: "p"},
+                {x: 635, y: 45, r: 1, c: 8, id: "p"},
+            ],*/
+            // Hexes list
+            "robber_btn": [],
+            // Vertices list (used with settlement_btn & city_btn)
+            "settlement_btn": [],
+            "road_btn": [],
+            "dev_card_btn": [],
+        }
+
+        let port_num = 0;
+        let brd_cx = this.renderWidth / 2;
+        let brd_cy = this.renderHeight / 2;
+        // Iterate over hexes
+        for(let idx = 0; idx < 19; idx++) {
+            let hexCX = hex_center_x(this.hexW, brd_cx, idx);
+            let hexCY = hex_center_y(this.tileH, brd_cy, idx);
+            // Ports list for bank trades
+            if(brd_s_o.port_orients[idx] !== '6') {
+                let port_orient = parseInt(brd_s_o.port_orients[idx]);
+                this.hoverLists.trade_btn.push({
+                    x: hex_port_x(this.hexW, hexCX, port_orient),
+                    y: hex_port_y(this.tileH, hexCY, port_orient),
+                    r: port_num,
+                    c: parseInt(brd_s_o.port_type_state[port_num]),
+                    id: "p",
+                });
+                port_num++;
+            }
+
+            // Hex locations for robber
+            this.hoverLists.robber_btn.push({
+                x: hexCX,
+                y: hexCY,
+                r: idx,
+                c: 0,
+                id: "h"  // hex, clickable for placing robber
+            });
+
+            // For each hex, add vertices
+            let v_ids = [];
+            switch(map_hex_to_unique_vertices[idx]) {
+                case 0:  // all vertices
+                    v_ids = [0, 1, 2, 3, 4, 5];
+                    break;
+                case 1:  // just vertex 0
+                    v_ids = [0];
+                    break;
+                case 2:  // just vertex 2
+                    v_ids = [2];
+                    break;
+                case 3:  // just vertex 3
+                    v_ids = [3];
+                    break;
+                case 4:  // just vertex 5
+                    v_ids = [5];
+                    break;
+                case 6: // all vertices except for west side
+                    v_ids = [1, 2, 3, 4];
+                    break;
+                default: // no vertices (case 5 included)
+            }
+            for(let i = 0; i < v_ids.length; i++) {
+                this.hoverLists.settlement_btn.push({
+                    x: hex_corner_x(this.hexW, hexCX, v_ids[i]),
+                    y: hex_corner_y(this.tileH, hexCY, v_ids[i]),
+                    r: hex_rc_to_vertex_rc(map_hex_idx_to_row_col[idx], v_ids[i])[0],
+                    c: hex_rc_to_vertex_rc(map_hex_idx_to_row_col[idx], v_ids[i])[1],
+                    id: "v",
+                })
+            }
+
+            // For each hex, add edges
+            let edge_ids = [];
+            switch(map_hex_to_unique_edges[idx]) {
+                case 0:  // all edges
+                    edge_ids = [0, 1, 2, 3, 4, 5];
+                    break;
+                case 1: // edges 2 & 5
+                    edge_ids = [2, ];
+                    break;
+                case 2:
+                    edge_ids = [2, 5, 0];
+                    break;
+                case 3:
+                    edge_ids = [2, 1];
+                    break;
+                case 4:
+                    edge_ids = [2, 3];
+                    break;
+                case 5:
+                    edge_ids = [2, 5, 4];
+                    break;
+                case 6:
+                    edge_ids = [0, 1, 2, 3, 4];
+                    break;
+                default:
+                    // shouldn't ever occur
+            }
+            for(let i = 0; i < edge_ids.length; i++) {
+                this.hoverLists.road_btn.push({
+                    x: hex_side_x(this.hexW, hexCX, edge_ids[i]),
+                    y: hex_side_y(this.tileH, hexCY, edge_ids[i]),
+                    r: hex_rc_to_edge_rc(map_hex_idx_to_row_col[idx], edge_ids[i])[0],
+                    c: hex_rc_to_edge_rc(map_hex_idx_to_row_col[idx], edge_ids[i])[1],
+                    id: "e",
+                });
+            }
+        }
     }
     reinit() {
         this.components = [];
@@ -355,14 +506,27 @@ class GameBoard {
         for (let i = 0; i < this.components.length; i++) {
             this.components[i].draw(this.ctx, this.wFactor, this.hFactor);
         }
-        if(this.hoverX > -1 && this.hoverY > -1) {
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(this.hoverX * this.wFactor, this.hoverY * this.hFactor, 25*this.wFactor, 0, 2 * Math.PI);
-            ctx.fillStyle = "rgba(164, 164, 164, 0.7)";
-            ctx.fill();
-            ctx.stroke();
-            ctx.restore();
+        if(this.active_action !== "") {
+            if(this.active_action === "city_btn") {
+                this.drawHoverList(this.hoverLists.settlement_btn);
+            } else if(this.hoverLists.hasOwnProperty(this.active_action)) {
+                this.drawHoverList(this.hoverLists[this.active_action]);
+            }
+        }
+    }
+    drawHoverList(hoverList) {
+        let rad = 25;
+        if (this.active_action === "robber_btn" || this.active_action === "trade_btn") {
+            rad = 50;
+        }
+        for(let i = 0; i < hoverList.length; i++) {
+            this.ctx.save();
+            this.ctx.beginPath();
+            this.ctx.arc(hoverList[i].x*this.wFactor, hoverList[i].y*this.hFactor, rad*this.wFactor, 0, 2 * Math.PI);
+            this.ctx.fillStyle = "rgba(200, 220, 230, 0.5)";
+            this.ctx.fill();
+            this.ctx.stroke();
+            this.ctx.restore();
         }
     }
     resize() {
@@ -394,8 +558,6 @@ class GameBoard {
           * Add all current board elements to object to be displayed
           */
     #addStaticBoardComponents() {
-        const rowH = this.tileH * 0.75;
-        const tileSize = this.bodyHeight / 5;
         const cX = this.renderWidth / 2;
         const cY = this.renderHeight / 2;
         const tokenSize = this.bodyHeight * TOKEN_RATIO;
@@ -409,10 +571,11 @@ class GameBoard {
               *   7  6  5  4
               *    3  2  1 
               */
+        let port_type_idx = 0;
         for (let y = 0; y < 5; y++) {
             for (let x = 0; x < RLENS[y]; x++) {
                 let tileCX = cX + this.hexW * (RLENS[y] / 2 - x - 0.5);
-                let tileCY = cY + rowH * (2 - y);
+                let tileCY = cY + this.rowH * (2 - y);
                 this.addBoardComponent(
                     new Img(
                         tileCX - this.tileH / 2,
@@ -420,7 +583,7 @@ class GameBoard {
                         this.tileH,
                         this.tileH,
                         HEX_IMAGES[brd_s_o.hex_state[cti]]));
-                if (brd_s_o.tkn_state[cti] != '0') {
+                if (brd_s_o.tkn_state[cti] !== '0') {
                     this.addBoardComponent(
                         new ChanceToken(
                             tileCX - tokenSize / 2,
@@ -430,14 +593,15 @@ class GameBoard {
                             parseInt(brd_s_o.tkn_state[cti], 16),
                             true));
                 }
-                if (brd_s_o.port_orients[cti] != '6') {
+                if (brd_s_o.port_orients[cti] !== '6') {
                     let portside = parseInt(brd_s_o.port_orients[cti]);
                     let sx = hex_side_x(this.hexW, tileCX, portside);
                     let sy = hex_side_y(this.tileH, tileCY, portside);
                     this.addBoardComponent(
                         new Port(sx, sy, this.tileH / 2,
                             portside,
-                            parseInt(brd_s_o.port_type_state[cti])));
+                            parseInt(brd_s_o.port_type_state[port_type_idx])));
+                    port_type_idx++;
                 }
                 cti++;
             }
@@ -454,25 +618,25 @@ class GameBoard {
         for(let r = 0; r < RMAP.length; r++) {
             for(let c = 0; c < N_COLS; c++) {
                 let col = -1;
-                if((brd_s_o.rbmap0[r] & (1<<c)) != 0) {
+                if((brd_s_o.rbmap0[r] & (1<<c)) !== 0) {
                     col = 0;
-                } else if((brd_s_o.rbmap1[r] & (1<<c)) != 0) {
+                } else if((brd_s_o.rbmap1[r] & (1<<c)) !== 0) {
                     col = 1;
-                } else if((brd_s_o.rbmap2[r] & (1<<c)) != 0) {
+                } else if((brd_s_o.rbmap2[r] & (1<<c)) !== 0) {
                     col = 2;
-                } else if((brd_s_o.rbmap3[r] & (1<<c)) != 0) {
+                } else if((brd_s_o.rbmap3[r] & (1<<c)) !== 0) {
                     col = 3;
                 }
                 if(col > -1) {
-                    if((RMAP[r] & (1<<c)) != 0) {
+                    if((RMAP[r] & (1<<c)) !== 0) {
                         sx = cX + (11-c)*this.hexW*0.25;
                         sy = cY + (r-6)*this.tileH*0.375;
-                        if(r%2==0) {
+                        if(r%2===0) {
                             rOrient = 2;
-                        } else if(c%4==2) {
-                            rOrient = (r%4==1) ? 1 : 3;
-                        } else if(c%4==0) {
-                            rOrient = (r%4==1) ? 3 : 1;
+                        } else if(c%4===2) {
+                            rOrient = (r%4===1) ? 1 : 3;
+                        } else if(c%4===0) {
+                            rOrient = (r%4===1) ? 3 : 1;
                         } else {
                             rOrient = -1; // this shouldn't occur
                         }
@@ -481,12 +645,12 @@ class GameBoard {
                         sx = cX + (11-c)*this.hexW*0.25;
                         sy = cY + (r-6)*this.tileH*0.375;
                         // offset to vertex
-                        if((c%4 == 1 && r%4==1) || (c%4==3 && r%4==3)) {
+                        if((c%4 === 1 && r%4===1) || (c%4===3 && r%4===3)) {
                             sy += this.tileH*0.125;
                         } else {
                             sy -= this.tileH*0.125;
                         }
-                        if((brd_s_o.btypemap[r] & (1<<c)) != 0) {
+                        if((brd_s_o.btypemap[r] & (1<<c)) !== 0) {
                             this.addComponent(new City(sx, sy, COLORS[col]));
                         } else {
                             this.addComponent(new Settlement(sx, sy, COLORS[col]));
@@ -504,27 +668,28 @@ class GameBoard {
             this.renderWidth*0.7, this.renderHeight-this.borderWidth, tokenSize, 
             parseInt(brd_s_o.dv1), parseInt(brd_s_o.dv2)));
         // Show player hands
-        const cardSize = tokenSize*1.4;
         const hph = this.renderHeight*0.22;
         let yph = hph * 0.06;
         const xph = yph;
-        COLORS.forEach((col, idx) => {
-            const offset = HAND_OFFSET[idx];
-            this.addComponent(new PlayerHand(xph, yph, hph, col, (brd_s_o.hands[offset+10]==1), (brd_s_o.hands[offset+11]==1), (brd_s_o.hands[offset+20]),
+        for (let i = 0; i < brd_s_o["num_players"]; i++) {
+            const offset = HAND_OFFSET[i];
+            this.addComponent(new PlayerHand(xph, yph, hph, COLORS[i], (brd_s_o.hands[offset+10]===1), (brd_s_o.hands[offset+11]===1), (brd_s_o.hands[offset+20]),
                 brd_s_o.hands.slice(offset, offset+5),
                 brd_s_o.hands.slice(offset+5, offset+10),
-                brd_s_o.hands[offset+12],
+                brd_s_o.hands[offset+15],
+                i,
             ));
             yph += hph*1.12;
-        });
+        }
         // Draw bank
         this.addComponent(new PlayerHand(
             this.renderWidth-hph*2, hph*0.06, hph*1.4, 
             "#00a5ff", 
-            (brd_s_o.bank[10]==1), (brd_s_o.bank[11]==1), 0,
+            (brd_s_o.bank[10]===1), (brd_s_o.bank[11]===1), 0,
             brd_s_o.bank.slice(0, 5),
             brd_s_o.bank.slice(5, 10),
-            0
+            0,
+            -1,
         ));
     }
 }
@@ -567,7 +732,7 @@ class ChanceToken {
 
         // Draw dice sum
         ctx.font = `bold ${36*wFactor}px Arial`;
-        ctx.fillStyle = (this.dv == 6 || this.dv == 8) ? 'red' : 'black';
+        ctx.fillStyle = (this.dv === 6 || this.dv === 8) ? 'red' : 'black';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(this.dv, centerX, centerY);
@@ -699,8 +864,6 @@ class Port {
         // 0 3:1, 1 brick, 2 grain, 3 lumber, 4 ore, 5 wool
         this.cX = x;
         this.cY = y;
-        this.baseColor = "#664248";
-        this.beachColor = "#eace9c";
         switch (porttype) {
             case 0:
                 this.porttext = "Brick\n2:1"
@@ -720,9 +883,10 @@ class Port {
             case 5:
                 this.porttext = "3:1";
                 break;
+            default:
+                console.error("Invalid port type: " + porttype);
         }
         this.hexSideLen = hexSideLen;
-        const dl = hexSideLen * 0.5*1.8; // dock length
         this.portAngle = 0;
         switch (orientation) {
             case 0:
@@ -784,6 +948,8 @@ class Port {
         ctx.restore();
     }
 }
+// TODO: currently shows all dev cards all the time; add mode to show only owned cards & stack, like real game
+
 class Road {
     constructor(x, y, orientation, baseColor) {
         this.cX = x;
@@ -915,7 +1081,7 @@ class Img {
 }
 class PlayerHand {
     // Reused for bank display
-    constructor(x, y, height, color, LA, LR, vps, resource_arr, dev_arr, nKnightsPlayed) {
+    constructor(x, y, height, color, LA, LR, vps, resource_arr, dev_arr, nKnightsPlayed, id) {
         this.x = x;
         this.y = y;
         this.height = height;
@@ -926,6 +1092,7 @@ class PlayerHand {
         this.cards = resource_arr;
         this.dCards = dev_arr;
         this.cardStacks = [];
+        this.id = id;
         let cXOffset = this.width*0.03;
         Object.keys(RES_NAMES).forEach((key, idx) => {
             this.cardStacks[this.cardStacks.length] = new CardStack(
@@ -944,7 +1111,7 @@ class PlayerHand {
                 this.x + cXOffset,
                 this.y + this.cW*2,
                 this.cW, DEV_IMAGES[key], DEV_NAMES[key], this.dCards[idx],
-                vps==0  // only show empty dev card stacks if bank
+                vps===0  // only show empty dev card stacks if bank
             );
             cXOffset += this.width*0.14;
         });
@@ -988,10 +1155,18 @@ class PlayerHand {
             ctx.textAlign = 'left';
             ctx.textBaseline = 'bottom';
             if(this.nK > 0) {
-                ctx.fillText(`${this.vps} VP   ${this.nK} K`, wFactor * (this.x+DRAWING_SCALE*0.3), hFactor * (this.y + this.height));
+                ctx.fillText(`P${this.id}  ${this.vps} VP   ${this.nK} K`, wFactor * (this.x+DRAWING_SCALE*0.3), hFactor * (this.y + this.height));
             } else {
-                ctx.fillText(`${this.vps} VP`, wFactor * (this.x+DRAWING_SCALE*0.3), hFactor * (this.y + this.height));
+                ctx.fillText(`P${this.id}  ${this.vps} VP`, wFactor * (this.x+DRAWING_SCALE*0.3), hFactor * (this.y + this.height));
             }
+        } else {
+            // TODO: find better way of indicating current player in bank
+            ctx.font = `bold ${DRAWING_SCALE * 1.2 * wFactor}px Arial`;
+            ctx.fillStyle = 'black';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(`Current Player: ${brd_s_o["curr_turn"]}`, wFactor * (this.x+DRAWING_SCALE*0.3),
+                hFactor * (this.y + this.height));
         }
     }
 }
@@ -1002,7 +1177,6 @@ class CardStack {
         this.cW = cardW;
         this.cH = cardW*1.6;
         this.image = image;
-        this.cardColor = "#eace9c";
         this.cText = text;
         this.n = n;
         this.indicate_empty = indicate_empty;
@@ -1170,7 +1344,7 @@ function shadeColor(color, shadeval) {
     ];
     let shadedColor = "#";
     rgb.forEach((element) => {
-        shadedColor += (element.length == 1) ? '0' + element : element;
+        shadedColor += (element.length === 1) ? '0' + element : element;
     });
     return shadedColor;
 }
@@ -1306,9 +1480,35 @@ function hex_side_y(tileH, hexCY, idx) {
             return hexCY + tileH * 3 / 8;
     }
 }
+function hex_port_x(hexW, hexCX, idx) {
+    switch (idx) {
+        case 5:
+            return hexCX - hexW;
+        case 2:
+            return hexCX + hexW;
+        case 0:
+        case 4:
+            return hexCX - hexW / 2;
+        default:
+            return hexCX + hexW / 2;
+    }
+}
+function hex_port_y(tileH, hexCY, idx) {
+    switch (idx) {
+        case 0:
+        case 1:
+            return hexCY - tileH * 3 / 4;
+        case 5:
+        case 2:
+            return hexCY;
+        default:
+            return hexCY + tileH * 3 / 4;
+    }
+}
 function gen_socket_listeners(socket) {
     socket.onopen = (event) => {
-        console.log("Connected to ws server.");
+        console.log(`Connected to ws server; event:${event}`);
+        // socket.send(JSON.stringify({"type": "ping"}))
     };
     socket.onclose = (event) => {
         if (event.wasClean) {
@@ -1317,7 +1517,7 @@ function gen_socket_listeners(socket) {
             console.log("Connection abruptly closed.");
             console.log(event);
         }
-        clearInterval(pingInterval);
+        // clearInterval(pingInterval);
         if (initialized_board) { // only show lost connection if board was initialized
             let lostconnectDiv = document.getElementById("lostconnect_div");
             lostconnectDiv.style.display = 'block';
@@ -1333,7 +1533,7 @@ function gen_socket_listeners(socket) {
             case "pong":
                 console.log("Received pong.");
                 // On first pong, request initial board state
-                if(!initialized_board) {
+                if (!initialized_board) {
                     console.log("requesting newly initialized board");
                     socket.send(JSON.stringify({"type": "new_board_request"}));
                     initialized_board = true;
@@ -1342,37 +1542,155 @@ function gen_socket_listeners(socket) {
             case "new_board":
                 // Once connected, hide loading animation
                 console.log("Received new board.");
+                initialized_board = true;
                 Object.keys(data).forEach((key) => {
-                    if(key in brd_s_o) {
+                    if (key in brd_s_o) {
                         brd_s_o[key] = data[key];
-                        console.log(key, data[key]);
+                        // console.log(key, data[key]);
                     }
                 });
                 let loadingDiv = document.getElementById("loading_div");
                 loadingDiv.style.display = 'none';
                 gameBoard.reinit();
                 gameBoard.draw();
+                break;
             case "board_update":
                 let true_update = false;
                 Object.keys(data).forEach((key) => {
-                    if(key in brd_s_o) {
+                    if (key in brd_s_o) {
                         brd_s_o[key] = data[key];
                         true_update = true;
                     }
                 });
-                if(true_update) {
+                if (true_update) {
                     console.log("Updated board state. Redrawing.");
                     gameBoard.clearComponents();
                     gameBoard.addComponents();
                     gameBoard.draw();
                 }
                 break;
+            case "notif":
+                if (data.message === "human_turn") {
+                    if (data.game_cycle_status === 1) {
+                        showModal("Please place the robber.");
+                        gameBoard.active_action = "robber_btn";
+                        gameBoard.draw();
+                    } else if (data.game_cycle_status === 2 || data.game_cycle_status === 3) {
+                        showModal("Please place a road.");
+                        gameBoard.active_action = "road_btn";
+                        gameBoard.draw();
+                    }
+                    console.log("It's your turn!");
+                } else if (data.message === "game_over") {
+                    console.log("Player" + data.pidx + " won!");
+                    showModal("Player " + data.pidx + " won!");
+                } else if (data.message === "invalid_action") {
+                    showModal("Invalid action; please try again. It is still your turn.");
+                } else if (data.message === "saved_game") {
+                    showModal("Successfully saved game to <span class=\"monospace\">" + data.filename + "</span>");
+                } else if (data.message === "step_game_replay") {
+                    console.log("Replaying saved game");
+                } else if (data.message === "invalid_act_during_replay") {
+                    showModal("Currently replaying saved game; please hit End Turn to step through game history.");
+                } else {
+                    console.log("Received notification: " + data.message);
+                }
+                // TODO: give actual notification
+                break;
             default:
                 console.error("Invalid message type: ", data.type);
         }
     };
-    
+    /*
     const pingInterval = setInterval(function () {
         socket.send(JSON.stringify({"type": "ping"}))
     }, PING_INTERVAL*1000);
+    */
+    window.addEventListener("click", function(e) {
+        mouse.x = e.x;
+        mouse.y = e.y;
+        let gameX = mouse.x*gameBoard.wrFactor;
+        let gameY = mouse.y*gameBoard.hrFactor;
+
+        let modal = document.getElementById("myModal");
+        if (e.target === modal) {
+            closeModal();
+            return;
+        }
+        // TODO: register action clicks & send action to server
+        if(e.target.classList.contains('act_button')) {
+            let action = e.target.id;
+            console.log("Clicked button: " + action);
+            gameBoard.active_action = action;
+            if(action === "end_turn_btn") {
+                socket.send(JSON.stringify({"type": "action", "action": "end_turn_btn"}));
+                // Reset active action
+                gameBoard.active_action = "";
+            } else if(action === "save_game_btn") {
+                socket.send(JSON.stringify({"type": "action", "action": "save_game_btn"}));
+                // Reset active action
+                gameBoard.active_action = "";
+            } else if(action === "reset_game_btn") {
+                socket.send(JSON.stringify({"type": "action", "action": "reset_game_btn"}));
+                // Reset active action
+                gameBoard.active_action = "";
+            } else if (action === "dev_card_btn") {
+                socket.send(JSON.stringify({"type": "action", "action": "dev_card_btn"}));
+                // Reset active action
+                gameBoard.active_action = "";
+            }
+            gameBoard.draw();
+        }
+        if(gameBoard.active_action !== "") {
+            let act = gameBoard.active_action;
+            if (act === "city_btn") { act = "settlement_btn"; }
+            let rad = 25;
+            if (act === "robber_btn" || act === "trade_btn") {
+                rad = 50;
+            }
+            console.log("Active action: " + gameBoard.active_action);
+            // Iterate over hover list to find clicked item
+            for(let i = 0; i < gameBoard.hoverLists[act].length; i++) {
+                let item = gameBoard.hoverLists[act][i];
+                if((gameX - item.x)**2 + (gameY - item.y)**2 < rad**2) {
+                    console.log("Clicked " + item.id + " at " + item.r + ", " + item.c);
+                    // Send websocket message to server, indicating human action
+                    socket.send(JSON.stringify({
+                        "type": "action",
+                        "action": gameBoard.active_action,
+                        "r": item.r,
+                        "c": item.c,
+                    }));
+                    // Reset active action
+                    gameBoard.active_action = "";
+                    // TODO: redraw?
+                    break;
+                }
+            }
+        }
+
+    });
+}
+
+// --------------------- MODAL NOTIFICATIONS ---------------------
+function openModal() {
+    let modal = document.getElementById("myModal");
+    let modal_paragraph = document.getElementById("modal_p_content");
+    modal_paragraph.innerHTML = "You have lost connection to the server. Please refresh the page to reconnect.";
+    modal.style.display = "block";
+}
+function showModal(message) {
+    let modal = document.getElementById("myModal");
+    let modal_paragraph = document.getElementById("modal_p_content");
+    modal_paragraph.innerHTML = message;
+    modal.style.display = "block";
+}
+function closeModal() {
+    let modal = document.getElementById("myModal");
+    modal.style.display = "none";
+    // treated as affirmative response to modal no matter what
+}
+
+function acknowledgeModal() {
+    closeModal();
 }

@@ -11,7 +11,7 @@
 <body>
     <div id="loading_div">
         <p>Connecting to the server...</p>
-        <img src="./static/img/catan_board_icon.png" id="loading_spinner">
+        <img src="./static/img/catan_board_icon.png" id="loading_spinner" alt="Loading...">
     </div>
     <div id="lostconnect_div">
         <p>Lost connection. Please refresh.</p>
@@ -19,6 +19,29 @@
     <canvas id="canvas1">
         Your browser does not support HTML5 Canvas.
     </canvas>
+    <div class="button_container">
+        <button id="end_turn_btn" class="act_button">End Turn</button>
+        <button id="trade_btn" class="act_button">Trade</button>
+        <button id="trade4_btn" class="act_button">Trade 4:1</button>
+        <button id="settlement_btn" class="act_button">Build Settlement</button>
+        <button id="city_btn" class="act_button">Build City</button>
+        <button id="road_btn" class="act_button">Build Road</button>
+        <button id="dev_card_btn" class="act_button">Buy Dev Card</button>
+        <button id="robber_btn" class="act_button">Place Robber</button>
+        <button id="save_game_btn" class="act_button">Save Game</button>
+        <button id="reset_game_btn" class="act_button">Reset Game</button>
+<!--        Dev tools: -->
+<!--        <button onclick="openModal()">Open Modal</button>-->
+    </div>
+
+    <div id="myModal" class="modal_notif">
+        <div class="modal_notif_content">
+            <span class="close_btn" onclick="closeModal()">&times;</span>
+            <p id="modal_p_content">This is a modal.</p>
+            <button onclick="acknowledgeModal()" class="ack_btn">Acknowledge</button>
+        </div>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>

@@ -1,10 +1,13 @@
 import asyncio
-import websockets
 import json
-import random
-from util import generate_new_board
 #  For debugging:
-import sys, os
+import os
+import random
+import sys
+
+import websockets
+
+from util import generate_new_board, filter_dict
 
 pong = {
     "type": 'pong',
@@ -15,8 +18,14 @@ board_state = {
     "message": "update",
 }
 
+
 async def chat(websocket, path):
-    while(True):
+    """
+    Extra websocket server for testing frontend board display. No longer used in lieu of websocket_server in main.py
+    :param websocket: Websocket object
+    :param path: Unused path for websocket
+    """
+    while (True):
         msg = await websocket.recv()
         try:
             msg_obj = json.loads(msg)
@@ -29,17 +38,18 @@ async def chat(websocket, path):
                 smsg = json.dumps(brd)
             else:
                 board_state["type"] = "board_update"
-                board_state["dv1"] = str(random.randint(1,6))
-                board_state["dv2"] = str(random.randint(1,6))
-                board_state["robber_loc"] = str(random.randint(0,18))
+                board_state["dv1"] = random.randint(1, 6)
+                board_state["dv2"] = random.randint(1, 6)
+                board_state["robber_loc"] = str(random.randint(0, 18))
                 smsg = json.dumps(board_state)
         except Exception as e:
-            smsg = json.dumps({"type":"error"})
+            smsg = json.dumps({"type": "error"})
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
             print(exc_type, fname, exc_tb.tb_lineno)
             # print(e)
         await websocket.send(smsg)
+
 
 if __name__ == "__main__":
     start_server = websockets.serve(chat, 'localhost', 8080)

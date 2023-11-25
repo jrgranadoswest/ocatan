@@ -2,3 +2,5 @@ venv/
 games/
 __pycache__/
 .idea/
+boards/
+test.py
