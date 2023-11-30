@@ -89,31 +89,82 @@ class GreedyVPAgent(Agent):
         return random.choice(best_moves)
 
 
-# class ExpectiminimaxAgent(Agent):
-#     """
-#     Expectiminimax agent for adversarial search of Catan game tree
-#     """
-# 
-#     def __init__(self, pidx=0, depth=2):
-#         super().__init__(pidx)
-#         self.depth = depth
-#         self.dice_vals = [(1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (2, 6), (3, 6), (4, 6), (5, 6), (6, 6)]
-# 
-#     def evaluation(self, gb: dict, player_idx: int):
-#         """
-#         Evaluates the board state for the player.
-#         Maximizes for self (higher score is better, lower is better for opponents.
-#         """
-#         if game_over(gb):
-#             if get_winner(gb) == self.pidx:  # Win
-#                 return float("inf")
-#             else:  # Loss
-#                 return -float("inf")
-#         score = 0
-#         offset = self.pidx * HAND_OFFSET
-#         score += gb["hands"][offset + HIdx.TRUE_VP.value]
-#         for i in range(gb["num_players"]):
-#             if i != self.pidx:
-#                 score -= gb["hands"][i * HAND_OFFSET + HIdx.TRUE_VP.value]
-#         return score
+class ExpectiminimaxAgent(Agent):
+    """
+    Expectiminimax agent for adversarial search of Catan game tree
+    """
 
+    def __init__(self, pidx=0, depth=2):
+        super().__init__(pidx)
+        self.depth = depth
+        self.dice_vals = [(1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (2, 6), (3, 6), (4, 6), (5, 6), (6, 6)]
+
+    def evaluation(self, gb: dict, player_idx: int):
+        """
+        Evaluates the board state for the player.
+        Maximizes for self (higher score is better, lower is better for opponents.
+        """
+        if game_over(gb):
+            if get_winner(gb) == self.pidx:  # Win
+                return float("inf")
+            else:  # Loss
+                return -float("inf")
+        score = 0
+        offset = self.pidx * HAND_OFFSET
+        score += gb["hands"][offset + HIdx.TRUE_VP.value]
+        for i in range(gb["num_players"]):
+            if i != self.pidx:
+                score -= gb["hands"][i * HAND_OFFSET + HIdx.TRUE_VP.value]
+        return score
+
+    def choose_move(self, gb: dict, avail_moves):
+        """Chooses action based on agent's policy"""
+        choice_score, move_choice = self.expectimax(gb, 4, self.pidx)
+        if global_verbose:
+            print(f"EXPECTIMAX CHOICE SCORE: {choice_score} MOVE CHOICE: {move_choice}")
+        return move_choice
+
+
+    def expectimax(self, gb: dict, depth: int, player: int, chance: bool=False):
+        """
+        Runs version of minimax on the game state.
+        All opponents minimize score and player maximizes score.
+        :return: (score, move)  Internal calls only care about score, top level call cares about move
+        """
+        if depth == 0 or game_over(gb):
+            return self.evaluation(gb, player), None
+
+        assert(player == gb["curr_turn"])
+        # Player idx of -1 indicates chance node
+        if chance:
+            expected_score = 0
+            for dice_sum in range(2, 12):
+                # Manually generate next state
+                next_state = copy.deepcopy(gb)
+                # curr player is already set to next player at this point
+                next_state["dice_sum"] = dice_sum
+                next_state["dv1"], next_state["dv2"] = self.dice_vals[dice_sum - 2]
+                roll_dice(next_state, self.dice_vals[dice_sum - 2][0], self.dice_vals[dice_sum - 2][1], False)
+                eval, _ = self.expectimax(next_state, depth - 1, player, False)  # chance node always followed by non-chance
+                expected_score += eval * DICE_SUM_PROBS[dice_sum]
+            return expected_score, None
+        if self.pidx == player:  # Our move; maximize
+            best_score = -float("inf")
+            best_move = None
+            for move in find_moves(gb, player):
+                next_state = generate_successor_dice_separate(gb, move)
+                # Next state is chance node if we finished our turn (next turn is not ours)
+                score, _ = self.expectimax(next_state, depth - 1, next_state["curr_turn"], next_state["curr_turn"] != player)
+                if score > best_score:
+                    best_score, best_move = score, move
+            return best_score, best_move
+        else:  # opponent move; minimize
+            best_score = float("inf")
+            best_move = None
+            for move in find_moves(gb, player):
+                next_state = generate_successor_dice_separate(gb, move)
+                # Next state is chance node if they finished their turn (next turn is not theirs)
+                score, _ = self.expectimax(next_state, depth - 1, next_state["curr_turn"], next_state["curr_turn"] != player)
+                if score < best_score:
+                    best_score, best_move = score, move
+            return best_score, best_move

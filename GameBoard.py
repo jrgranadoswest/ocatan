@@ -15,6 +15,30 @@ def generate_successor(gb: dict, action: tuple):
     return new_gb
 
 
+def generate_successor_dice_separate(gb: dict, action: tuple):
+    """Generate an independent successor game board state, independent of the old state object"""
+    # create a copy of the board state, completely independent from old board state
+    new_gb = deepcopy(gb)
+    if action[0] == Act.END_TURN:
+        pidx = new_gb["curr_turn"]
+        offset = HAND_OFFSET * pidx
+        new_gb["hands"][offset + HIdx.PLAYABLE_DEV_MAP.value] = 0
+        # Check for playable dev cards
+        for i in range(5):
+            if i == 0 or i == 2:  # Knight or Road Builder
+                if new_gb["hands"][offset + i + HIdx.KNIGHT.value] > 0:
+                    # NOTE: we don't check here if the player has maxed out their road building
+                    new_gb["hands"][offset + HIdx.PLAYABLE_DEV_MAP.value] |= 1 << i
+        # TODO: implement other three dev cards
+        new_gb["hands"][offset + HIdx.PLAYED_DEV.value] = 0
+        new_gb["curr_turn"] = (new_gb["curr_turn"] + 1) % new_gb["num_players"]
+    elif action[0] == Act.DICE_ROLL:
+        roll_dice(new_gb, action[1], action[2], False)
+    else:
+        take_move(new_gb, action)
+    return new_gb
+
+
 def take_move(gb: dict, action: tuple):
     """
     Take a move on the game board
@@ -28,7 +52,7 @@ def take_move(gb: dict, action: tuple):
     # TODO: remove below
     for idx, val in enumerate(gb["hands"]):
         if val < 0:
-            print(f"NEGATIVE HAND VALUE, {HIdx(idx % HAND_OFFSET).name}: {val}")
+            print(f"NEGATIVE HAND VALUE, {idx} : {HIdx(idx % HAND_OFFSET)}: {val}")
             raise ValueError("Negative hand value")
 
 
@@ -50,7 +74,7 @@ def take_move(gb: dict, action: tuple):
         # TODO: implement other three dev cards
         gb["hands"][offset + HIdx.PLAYED_DEV.value] = 0
 
-        gb["curr_turn"] = pidx + 1 if pidx < gb["num_players"] - 1 else 0
+        gb["curr_turn"] = (pidx + 1) % gb["num_players"]
         if len(action) > 1:  # For game replay
             roll_dice(gb, action[1], action[2])
         else:
@@ -109,10 +133,12 @@ def trade_with_bank(gb: dict, pidx: int, resource_idx: int, num_to_trade: int, r
     offset = HAND_OFFSET * pidx
     # Consume resources
     gb["hands"][offset + resource_idx] -= num_to_trade
+    assert gb["hands"][offset + resource_idx] >= 0
     gb["bank"][resource_idx] += num_to_trade
     # Give requested resource
     gb["hands"][offset + requested_resource_idx] += 1
     gb["bank"][requested_resource_idx] -= 1
+    assert gb["bank"][requested_resource_idx] >= 0
 
 
 def act_invalid(brd_state: dict, act_tuple):
@@ -142,6 +168,9 @@ def buy_dev_card(gb: dict, pidx: int):
     gb["hands"][offset + HIdx.O.value] -= 1
     gb["hands"][offset + HIdx.G.value] -= 1
     gb["hands"][offset + HIdx.W.value] -= 1
+    assert gb["hands"][offset + HIdx.O.value] >= 0
+    assert gb["hands"][offset + HIdx.G.value] >= 0
+    assert gb["hands"][offset + HIdx.W.value] >= 0
     gb["bank"][HIdx.O.value] += 1
     gb["bank"][HIdx.G.value] += 1
     gb["bank"][HIdx.W.value] += 1
@@ -151,6 +180,7 @@ def buy_dev_card(gb: dict, pidx: int):
     # Take from bank, add to hand
     gb["hands"][offset + dev_card_id] += 1
     gb["bank"][dev_card_id] -= 1
+    assert gb["bank"][dev_card_id] >= 0
     # Update VP count as appropriate
     if dev_card_id == HIdx.VP_CRD.value:
         gb["hands"][offset + HIdx.TRUE_VP.value] += 1
@@ -177,6 +207,7 @@ def play_dev_card(gb: dict, dev_card_id: int):
         return
     # Return card to bank
     gb["hands"][offset + dev_card_id] -= 1
+    assert gb["hands"][offset + dev_card_id] >= 0
     gb["bank"][dev_card_id] += 1
     # Mark that player has played a dev card this turn; can't play another
     gb["hands"][offset + HIdx.PLAYED_DEV.value] = 1
@@ -234,6 +265,7 @@ def find_moves(gb: dict, turn: int) -> list:
                     # 4:1 or 3:1 trade possible (currently just 4:1)
                     # TODO: implement as multi-stage action, like dev cards
                     e_moves.append((Act.BANK_TRADE, i, (3 if gen_trade_type == 5 else 4), j))
+
     # TODO: HIdx.PORTS.value needs to be properly implemented & maintained elsewhere in code for this to be implemented
     # trade_types = []
     # gen_trade_possible = False

@@ -5,8 +5,6 @@ import time
 from constants import *
 
 
-# HAND_OFFSET, BOARD_STATES_DIR, BMAP, RMAP, WINNING_VPS, HEX_IDX_TO_VERTICES, HEX_LETTER_TO_RES_ID, Act, HIdx
-
 # New board state generation methods
 def generate_new_board(num_players=4):
     """
@@ -213,12 +211,13 @@ def robber_steal(brd_state: dict, victim_idx: int, perpetrator_idx: int):
     brd_state["hands"][perpetrator_idx * HAND_OFFSET + resource_val] += 1  # add resource to perpetrator's hand
 
 
-def roll_dice(brd_s, dv1=None, dv2=None):
+def roll_dice(brd_s, dv1=None, dv2=None, conduct_robber=True):
     """
     Game logic for dice roll.
     :param brd_s: Board state.
     :param dv1: The first dice value; used for replay mode when we don't want to roll the dice.
     :param dv2: The second dice value; used for replay mode when we don't want to roll the dice.
+    :param conduct_robber: Whether or not to conduct robber action; for use in some player agents.
     """
     if dv1 is None or dv2 is None:
         dv1 = random.randint(1, 6)
@@ -226,7 +225,7 @@ def roll_dice(brd_s, dv1=None, dv2=None):
     brd_s["dv1"] = dv1
     brd_s["dv2"] = dv2
     brd_s["dice_sum"] = dv1 + dv2
-    harvest_roll_resources(brd_s, dv1 + dv2)
+    harvest_roll_resources(brd_s, dv1 + dv2, conduct_robber)
 
 
 # Tested
@@ -304,10 +303,10 @@ def place_robber(brd_state: dict, hex_idx: int, steal_idx: int):
         # Steal resource from player that has built on hex
         robber_steal(brd_state, random.choice(players_to_rob), brd_state["curr_turn"])
         # TODO: remove extraneous prints, or only use on verbose mode
-        if GLOBAL_VERBOSE:
+        if global_verbose:
             print("Player " + str(brd_state["curr_turn"]) + " stole from player " + str(players_to_rob[0]))
     else:
-        if GLOBAL_VERBOSE:
+        if global_verbose:
             print("Robber placed on hex with no opponent buildings")  # technically could have opponent buildings, but no resources
 
 
@@ -382,16 +381,18 @@ def enact_robber(brd_state: dict):
 
 
 # Partially tested (not tested for cities)
-def harvest_roll_resources(brd_state: dict, dice_sum: int):
+def harvest_roll_resources(brd_state: dict, dice_sum: int, conduct_robber=True):
     """
     Distributes resources to players based on the dice roll sum.
     Note: with current implementation, simply continues giving out resources until there are no more of that type in the
     bank. (No effort to distribute evenly or not at all when there are not enough resources in the bank)
     :param brd_state: Board state.
     :param dice_sum: Sum of the dice roll.
+    :param conduct_robber: Whether to conduct robber action; for use in some player agents.
     """
     if dice_sum == 7:
-        enact_robber(brd_state)
+        if conduct_robber:
+            enact_robber(brd_state)
         return
     hex_ids = brd_state["dv_to_hex_map"][dice_sum - 2]
     # Iterate over all producing hexes
@@ -433,6 +434,13 @@ def gen_token_arrangement(hex_arrangement: str) -> str:
     return "".join(chars)
 
 
+def print_hands(gb: dict):
+    """Prints out all values in the hands array in a readable format."""
+    for i in range(len(gb["hands"]) // 5):
+        i_mod = i % 5
+        print(f"{gb['hands'][i*5:(i+1)*5]} :\t{[HIdx(j).name for j in range(i_mod*5, (i_mod+1)*5)]}")
+
+
 # Static lookup table for port locations; each entry is a tuple of (hex_idx, port_orientation)
 # PORT_LOOKUP = [(0, 2), (0, 3), (0, 4), (1, 3), (1, 4), (2, 3), (2, 4), (6, 4), (6, 5), (11, 4), (11, 5), (11, 0),
 #                (15, 5), (15, 0), (18, 5), (18, 0), (18, 1), (17, 0), (17, 1), (16, 0), (16, 1), (16, 2), (12, 1),
@@ -470,38 +478,37 @@ def gen_tile_arrangement(tile_assortment=(3, 4, 4, 3, 4, 1), num_tiles=19) -> st
     return "".join(possible_tiles)
 
 
-# def place_init_settlements_arbitrary(brd_state):
-#     """
-#     Places initial settlements for each player on the board, for a brand new game of Catan.
-#     Static arbitrary placement version
-#
-#     Precondition: brd_state is a new board state, 4 players
-#     """
-#     # For now, just arbitrarily chosen
-#     place_settlement(brd_state, 0, 9, 15, False)
-#     place_settlement(brd_state, 0, 3, 7, False)
-#     place_road(brd_state, 0, 9, 14, False)
-#     place_road(brd_state, 0, 3, 8, False)
-#     place_settlement(brd_state, 1, 9, 9, False)
-#     place_settlement(brd_state, 1, 3, 13, False)
-#     place_road(brd_state, 1, 9, 10, False)
-#     place_road(brd_state, 1, 3, 14, False)
-#     place_settlement(brd_state, 2, 5, 3, False)
-#     place_settlement(brd_state, 2, 7, 7, False)
-#     place_road(brd_state, 2, 5, 4, False)
-#     place_road(brd_state, 2, 7, 8, False)
-#     place_settlement(brd_state, 3, 5, 17, False)
-#     place_settlement(brd_state, 3, 5, 13, False)
-#     place_road(brd_state, 3, 5, 12, False)
-#     place_road(brd_state, 3, 5, 18, False)
-#
-#     # Distribute initial resources based on initial settlements
-#     # step i: 0, 2, 4
-#     for i in range(0, 5, 2):
-#         for pidx, rc_tuple in enumerate([(3, 7), (3, 13), (7, 7), (5, 13)]):
-#             res_val = brd_state["vresmap"][rc_tuple][i]
-#             if res_val != -1:
-#                 brd_state["hands"][pidx * HAND_OFFSET + res_val] += 1
+def generate_beginner_board(num_players=4):
+    """
+    Places initial settlements for each player on the board, based on the catan rulebook beginnner board
+    (Meant to be a relatively fair board)
+    """
+    brd_state = generate_new_board(num_players)
+    # TODO: complete this
+    place_settlement(brd_state, 0, 9, 15, False)
+    place_settlement(brd_state, 0, 3, 7, False)
+    place_road(brd_state, 0, 9, 14, False)
+    place_road(brd_state, 0, 3, 8, False)
+    place_settlement(brd_state, 1, 9, 9, False)
+    place_settlement(brd_state, 1, 3, 13, False)
+    place_road(brd_state, 1, 9, 10, False)
+    place_road(brd_state, 1, 3, 14, False)
+    place_settlement(brd_state, 2, 5, 3, False)
+    place_settlement(brd_state, 2, 7, 7, False)
+    place_road(brd_state, 2, 5, 4, False)
+    place_road(brd_state, 2, 7, 8, False)
+    place_settlement(brd_state, 3, 5, 17, False)
+    place_settlement(brd_state, 3, 5, 13, False)
+    place_road(brd_state, 3, 5, 12, False)
+    place_road(brd_state, 3, 5, 18, False)
+
+    # Distribute initial resources based on initial settlements
+    # step i: 0, 2, 4
+    for i in range(0, 5, 2):
+        for pidx, rc_tuple in enumerate([(3, 7), (3, 13), (7, 7), (5, 13)]):
+            res_val = brd_state["vresmap"][rc_tuple][i]
+            if res_val != -1:
+                brd_state["hands"][pidx * HAND_OFFSET + res_val] += 1
 
 
 def place_init_settlements(brd_state):
@@ -976,8 +983,8 @@ def make_unique_fn(fp):
     count = 1
     new_filename = fp
     while os.path.exists(new_filename):
-        if GLOBAL_VERBOSE:
-            print("File already exists: ", base)
+        if global_verbose:
+            print("File already exists: ", base, "; making variation")
         new_filename = f"{base}{count}{ext}"
         count += 1
 

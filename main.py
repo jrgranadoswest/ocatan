@@ -5,14 +5,13 @@ import copy
 import websockets
 
 import util
-from Agents import RandomAgent, HumanAgent, ExpectiminimaxAgent, GreedyRandomAgent
+from Agents import RandomAgent, HumanAgent, ExpectiminimaxAgent, GreedyRandomAgent, GreedyVPAgent
 from GameBoard import *
 from util import *
-from constants import GLOBAL_VERBOSE  # TODO: double check that this is properly modified for all files
+from constants import global_verbose  # TODO: double check that this is properly modified for all files
 
 
 def main():
-    global GLOBAL_VERBOSE
     parser = argparse.ArgumentParser(description="Conquerors of Catan")
 
     #  # Argument to specify the JSON file path
@@ -34,22 +33,27 @@ def main():
     parser.add_argument('-r', '--readrecord', type=str, help='Game file to replay')
     parser.add_argument('-a', '--autosteps', action='store_true', help='Automatically step through replay',
                         default=False)
+    parser.add_argument('-b', '--beginnerboard', action='store_true', help='Use beginner board layout', default=False)
 
     args = parser.parse_args()
     random.seed(args.seed)
     if len(args.players) < 2 or len(args.players) > 4:
         parser.exit(1, "Invalid number of players")
     if args.verbose:
-        GLOBAL_VERBOSE = True
+        global_verbose = True
     if args.nogui:
         # TODO: implement non-gui loadstate
         # Run games with no GUI, therefore no human players
         run_games(args)
         return
     # Otherwise, run with GUI
-    if args.loadstate:
+    if args.beginnerboard:
+        global_verbose = True
+        # game_board = generate_beginner_board(len(args.players))
+        game_board = generate_new_board(len(args.players))
+    elif args.loadstate:
         # ex file: board_state_1701364167.json
-        if GLOBAL_VERBOSE:
+        if global_verbose:
             print("Loading game state from file")
         try:
             game_board = load_state_from_json(args.loadstate)
@@ -60,7 +64,7 @@ def main():
         # place_init_settlements(game_board)  # TODO: implement loading from json
     elif args.justlayout:
         # load json file, but only use tokens and hex layout; reinitialize everything else
-        if GLOBAL_VERBOSE:
+        if global_verbose:
             print("Loading game state from file")
         try:
             game_board = load_state_from_json(args.justlayout, just_layout=True)
@@ -70,7 +74,7 @@ def main():
             print(e)
             return
     else:
-        if GLOBAL_VERBOSE:
+        if global_verbose:
             print("Generating new game state")
         game_board = generate_new_board(len(args.players))
 
@@ -78,10 +82,10 @@ def main():
         # Replay game from file
         print("Waiting for frontend to connect...")
         start_server = websockets.serve(lambda ws, path: replay_game(ws, path, args.readrecord, args.autosteps), "localhost", 8080)
-        if GLOBAL_VERBOSE:
+        if global_verbose:
             print("server started")
         asyncio.get_event_loop().run_until_complete(start_server)
-        if GLOBAL_VERBOSE:
+        if global_verbose:
             print("server running")
         asyncio.get_event_loop().run_forever()
         return
@@ -91,10 +95,10 @@ def main():
     # run_games(args)
     start_server = websockets.serve(lambda ws, path: websocket_server(ws, path, game_board, args.players), "localhost",
                                     8080)
-    if GLOBAL_VERBOSE:
+    if global_verbose:
         print("server started")
     asyncio.get_event_loop().run_until_complete(start_server)
-    if GLOBAL_VERBOSE:
+    if global_verbose:
         print("server running")
     asyncio.get_event_loop().run_forever()
 
@@ -163,18 +167,21 @@ def parse_players(players_str, human_interface=True):
     """Parse the players string into a list of agent class instances"""
     # Parse agents string
     agents = []
-    for char in players_str:
+    for pidx, char in enumerate(players_str):
         if char == "H" and human_interface:
-            agents.append(HumanAgent())
+            agents.append(HumanAgent(pidx))
         elif char == "R":
-            agents.append(RandomAgent())
+            agents.append(RandomAgent(pidx))
         elif char == "G":
-            agents.append(GreedyRandomAgent())
+            agents.append(GreedyRandomAgent(pidx))
+        elif char == "V":
+            agents.append(GreedyVPAgent(pidx))
         elif char == "E":
-            agents.append(ExpectiminimaxAgent())
+            agents.append(ExpectiminimaxAgent(pidx))
         else:
             print("invalid player string")
             return []
+    print(f"Agents: {agents}")
     return agents
 
 
@@ -205,7 +212,7 @@ def run_games(args):
             available_moves = find_moves(gb, gb["curr_turn"])
             assert len(available_moves) > 0, "Empty avail moves list"
             act = agents[gb["curr_turn"]].choose_move(gb, available_moves)
-            if GLOBAL_VERBOSE:
+            if global_verbose:
                 print(f"P{gb['curr_turn']} turn (AI) taking action {act}")
             if act[0] == Act.END_TURN:
                 num_turns[i] += 1
@@ -227,7 +234,7 @@ def run_games(args):
                     moves_history.append(act)
         if args.writerecord:
             fp = save_game_to_json(gb_init, moves_history)
-            if GLOBAL_VERBOSE:
+            if global_verbose:
                 print(f"Game saved to file {fp}")
         win_pidx = get_winner(gb)
         agent_wins[win_pidx] += 1
@@ -236,7 +243,7 @@ def run_games(args):
             total_player_vps[pidx] += gb["hands"][pidx * HAND_OFFSET + HIdx.TRUE_VP.value]
         print(
             f"Game {i} over; P{win_pidx} wins with {gb['hands'][win_pidx * HAND_OFFSET + HIdx.TRUE_VP.value]} VPs in {num_turns[i]} turns, {num_actions[i]} actions")
-        if GLOBAL_VERBOSE:
+        if global_verbose:
             for pidx in range(len(agents)):
                 if pidx != win_pidx:
                     print(f"P{pidx} VPs: {gb['hands'][pidx * HAND_OFFSET + HIdx.TRUE_VP.value]}")
@@ -347,7 +354,7 @@ async def replay_game(websocket, path, fname, auto_steps=True):
             await asyncio.sleep(0.5)  # simply wait half a second between actions
 
         curr_move = moves_history.pop(0)
-        if GLOBAL_VERBOSE:
+        if global_verbose:
             print("Current hands:")
             for pidx in range(gb["num_players"]):
                 for i in range(5):

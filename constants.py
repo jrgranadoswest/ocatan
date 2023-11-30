@@ -1,7 +1,7 @@
 from enum import Enum
 
 # NON-CONSTANTS
-GLOBAL_VERBOSE = False
+global_verbose = False
 
 # CONSTANTS
 #                 0   1   2   3      4     5    6     7    8     9   10    11    12
@@ -60,6 +60,7 @@ class Act(Enum):
     PLAY_DEV = 5
     BANK_TRADE = 6
     PLACE_ROBBER = 7
+    DICE_ROLL = 8  # Only used for certain player agents; not a valid action to take in-game
     # PLAYER_TRADE = 8
 
 
