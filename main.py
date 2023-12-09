@@ -5,7 +5,7 @@ import copy
 import websockets
 
 import util
-from Agents import RandomAgent, HumanAgent, ExpectiminimaxAgent, GreedyRandomAgent, GreedyVPAgent
+from Agents import RandomAgent, HumanAgent, ExpectiminimaxAgent, GreedyRandomAgent, VPGreedyAgent
 from GameBoard import *
 from util import *
 from constants import global_verbose  # TODO: fix usage of global_verbose
@@ -23,7 +23,7 @@ def main():
     parser.add_argument('-p', '--players', type=str, help='N character string for N players', default="HGGG")
     parser.add_argument('-g', '--num-games', type=int, help='Number of games to run', default=1)
     # random seed option for reproducibility
-    parser.add_argument('-s', '--seed', type=int, help='Random seed', default=0)
+    parser.add_argument('--seed', type=int, help='Random seed', default=0)
     parser.add_argument('-m', '--maxturns', type=int, help='Max turns per game', default=2000)
 
     # Saving & loading game files
@@ -33,6 +33,7 @@ def main():
     parser.add_argument('-r', '--readrecord', type=str, help='Game file to replay')
     parser.add_argument('-a', '--autosteps', action='store_true', help='Automatically step through replay',
                         default=False)
+    parser.add_argument('-s', '--savestats', action='store_true', help='Save game statistics', default=False)
     # parser.add_argument('-b', '--beginnerboard', action='store_true', help='Use beginner board layout', default=False)
 
     args = parser.parse_args()
@@ -172,13 +173,14 @@ def parse_players(players_str, human_interface=True):
         elif char == "G":
             agents.append(GreedyRandomAgent(pidx))
         elif char == "V":
-            agents.append(GreedyVPAgent(pidx))
+            agents.append(VPGreedyAgent(pidx))
         elif char == "E":
             agents.append(ExpectiminimaxAgent(pidx))
         else:
             print("invalid player string")
             return []
-    print(f"Agents: {agents}")
+    if global_verbose:
+        print(f"Agents: {agents}")
     return agents
 
 
@@ -271,6 +273,21 @@ def run_games(args):
     print(f"Average turns per player: {sum(num_turns) / len(num_turns) / len(agents)}")
 
     # TODO: save statistics for each game
+    stat_list = [[
+        args.players, len(agents),
+        args.num_games,
+        100 * (args.num_games-agent_wins[-1])/args.num_games,
+        "-", "-",
+    ],]
+    for pidx, player in enumerate(agents):
+        stat_list.append([str(player), pidx,
+                          agent_wins[pidx],
+                          (agent_wins[pidx] / args.num_games)*100,
+                          total_player_vps[pidx] / args.num_games,
+                          opponent_losing_vps[pidx] / agent_wins[pidx] if agent_wins[pidx] > 0 else 0])
+    if args.savestats:
+        save_stats_to_csv("./stats.csv", stat_list)
+
 
 
 async def websocket_server(websocket, path, gb, players_str):

@@ -9,6 +9,7 @@ DICE_SUM_PROBS = [0, 0, 1 / 36, 1 / 18, 1 / 12, 1 / 9, 5 / 36, 1 / 6, 5 / 36, 1 
 HAND_OFFSET = 25  # Offset in array storing info for players' hands
 BOARD_STATES_DIR = './boards/'  # Directory for .json board states
 GAME_STATES_DIR = './games/'  # Directory for saved .json game states
+STAT_HEADER_STR = "player str, pidx, num wins, win %, avg vps, avg opp vps on plyr win\n"  # Saved game statistics
 WINNING_VPS = 10  # Number of victory points needed to win
 MAX_ROADS = 15  # Number of roads each player starts with
 MAX_SETTLEMENTS = 5  # Number of settlements each player starts with

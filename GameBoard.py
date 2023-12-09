@@ -277,5 +277,5 @@ def find_moves(gb: dict, turn: int) -> list:
     #     trade_types.append(gen_trade_type)
     # if trade_types:
     #     gen_moves.append(Act.BANK_TRADE)
-
+    assert len(e_moves) > 0, "No found moves"
     return e_moves

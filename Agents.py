@@ -1,4 +1,5 @@
 import copy
+import math
 import sys
 from GameBoard import *
 from constants import global_verbose
@@ -16,6 +17,9 @@ class Agent:
         print("Agent.choose_move() not implemented")
         sys.exit(1)
 
+    def __str__(self):
+        return "Agent"
+
 
 class HumanAgent(Agent):
     """
@@ -28,6 +32,8 @@ class HumanAgent(Agent):
         """Chooses action by waiting for human player input"""
         pass
 
+    def __str__(self):
+        return "Human"
 
 class RandomAgent(Agent):
     """Random agent for Catan; chooses moves uniformly at random"""
@@ -38,6 +44,8 @@ class RandomAgent(Agent):
         """Chooses action based on agent's policy"""
         return random.choice(avail_moves)
 
+    def __str__(self):
+        return "RandomAgent"
 
 class GreedyRandomAgent(Agent):
     """
@@ -64,8 +72,10 @@ class GreedyRandomAgent(Agent):
         #         return move
         # return random.choice(avail_moves)
 
+    def __str__(self):
+        return "GreedyRandomAgent"
 
-class GreedyVPAgent(Agent):
+class VPGreedyAgent(Agent):
     """
     Greedily chooses moves that maximize victory points
     """
@@ -88,6 +98,9 @@ class GreedyVPAgent(Agent):
         # Randomly choose between moves of equal VP value
         return random.choice(best_moves)
 
+    def __str__(self):
+        return "VPGreedyAgent"
+
 
 class ExpectiminimaxAgent(Agent):
     """
@@ -106,9 +119,9 @@ class ExpectiminimaxAgent(Agent):
         """
         if game_over(gb):
             if get_winner(gb) == self.pidx:  # Win
-                return float("inf")
+                return 100000
             else:  # Loss
-                return -float("inf")
+                return -100000
         score = 0
         offset = self.pidx * HAND_OFFSET
         score += gb["hands"][offset + HIdx.TRUE_VP.value]
@@ -119,29 +132,11 @@ class ExpectiminimaxAgent(Agent):
 
     def choose_move(self, gb: dict, avail_moves):
         """Chooses action based on agent's policy"""
+        assert not game_over(gb)
         choice_score, move_choice = self.expectimax(gb, 4, self.pidx)
         if global_verbose:
             print(f"EXPECTIMAX CHOICE SCORE: {choice_score} MOVE CHOICE: {move_choice}")
         return move_choice
-
-
-    def expectimax_ab_pruning(self, gb: dict, depth: int, player: int, chance: bool=False):
-        """Same as expectimax, but with alpha-beta pruning"""
-        if depth == 0 or game_over(gb):
-            return self.evaluation(gb, player), None
-
-        assert(player == gb["curr_turn"])
-        # Player idx of -1 indicates chance node
-        if chance:
-            expected_score = 0
-            for dice_sum in range(2, 12):
-                # Manually generate next state
-                next_state = copy.deepcopy(gb)
-                # curr player is already set to next player at this point
-                next_state["dice_sum"] = dice_sum
-                next_state["dv1"], next_state["dv2"] = self.dice_vals[dice_sum - 2]
-                roll_dice(next_state, self.dice_vals[dice_sum - 2][0], self.dice_vals[dice_sum - 2][1], False)
-                eval, _ = self.expectimax_ab_pruning(next_state, depth - 1, player, False)
 
 
     def expectimax(self, gb: dict, depth: int, player: int, chance: bool=False):
@@ -153,7 +148,7 @@ class ExpectiminimaxAgent(Agent):
         if depth == 0 or game_over(gb):
             return self.evaluation(gb, player), None
 
-        assert(player == gb["curr_turn"])
+        assert player == gb["curr_turn"]
         # Player idx of -1 indicates chance node
         if chance:
             expected_score = 0
@@ -187,3 +182,6 @@ class ExpectiminimaxAgent(Agent):
                 if score < best_score:
                     best_score, best_move = score, move
             return best_score, best_move
+
+    def __str__(self):
+        return "ExpectimaxAgent"
