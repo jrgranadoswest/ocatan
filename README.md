@@ -104,6 +104,8 @@ files:
 ├── main.py             # Primary program; parses args; game loop
 ├── ...
 ├── README.md
+├── games/              # Saved .json games for replay/review; not tracked by git
+├── boards/             # Saved .json board states for reuse/continuation; not tracked by git
 ├── requirements.txt    # Python pip requirements
 └── util.py             # Variety of utility fns; overlap with GameBoard.py
 ```

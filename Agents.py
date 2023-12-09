@@ -125,6 +125,25 @@ class ExpectiminimaxAgent(Agent):
         return move_choice
 
 
+    def expectimax_ab_pruning(self, gb: dict, depth: int, player: int, chance: bool=False):
+        """Same as expectimax, but with alpha-beta pruning"""
+        if depth == 0 or game_over(gb):
+            return self.evaluation(gb, player), None
+
+        assert(player == gb["curr_turn"])
+        # Player idx of -1 indicates chance node
+        if chance:
+            expected_score = 0
+            for dice_sum in range(2, 12):
+                # Manually generate next state
+                next_state = copy.deepcopy(gb)
+                # curr player is already set to next player at this point
+                next_state["dice_sum"] = dice_sum
+                next_state["dv1"], next_state["dv2"] = self.dice_vals[dice_sum - 2]
+                roll_dice(next_state, self.dice_vals[dice_sum - 2][0], self.dice_vals[dice_sum - 2][1], False)
+                eval, _ = self.expectimax_ab_pruning(next_state, depth - 1, player, False)
+
+
     def expectimax(self, gb: dict, depth: int, player: int, chance: bool=False):
         """
         Runs version of minimax on the game state.

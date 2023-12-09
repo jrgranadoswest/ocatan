@@ -4,7 +4,7 @@ from constants import HAND_OFFSET, Act, HIdx
 from util import *
 
 
-# TODO: consider in AI agent when robber is on a hex
+# TODO: consider in AI heuristics when robber is on a hex
 
 
 def generate_successor(gb: dict, action: tuple):
@@ -49,11 +49,10 @@ def take_move(gb: dict, action: tuple):
     For bank trades, tuple is (move_type, resource_idx, num_to_trade, requested_resource_idx)
     For playing dev cards, tuple is (move_type, dev_card_id)
     """
-    # TODO: remove below
-    for idx, val in enumerate(gb["hands"]):
-        if val < 0:
-            print(f"NEGATIVE HAND VALUE, {idx} : {HIdx(idx % HAND_OFFSET)}: {val}")
-            raise ValueError("Negative hand value")
+    # for idx, val in enumerate(gb["hands"]):
+    #     if val < 0:
+    #         print(f"NEGATIVE HAND VALUE, {idx} : {HIdx(idx % HAND_OFFSET)}: {val}")
+    #         raise ValueError("Negative hand value")
 
 
     pidx = gb["curr_turn"]
@@ -71,7 +70,6 @@ def take_move(gb: dict, action: tuple):
         #     gb["hands"][offset + HIdx.PLAYABLE_DEV_MAP.value] |= 1
         # if gb["hands"][offset + HIdx.RD_BLDR.value] > 0:
         #     gb["hands"][offset + HIdx.PLAYABLE_DEV_MAP.value] |= 1 << 2  # 3rd bit, skip unplayable VP card bit
-        # TODO: implement other three dev cards
         gb["hands"][offset + HIdx.PLAYED_DEV.value] = 0
 
         gb["curr_turn"] = (pidx + 1) % gb["num_players"]
@@ -96,7 +94,6 @@ def take_move(gb: dict, action: tuple):
             # Check if this player now holds the longest road
             if gb["hands"][offset + HIdx.LEN_LNGST_ROAD.value] >= 5:
                 assign_longest_road(gb)
-        # TODO: implement above
     elif action[0] == Act.SETTLEMENT:
         place_settlement(gb, pidx, action[1], action[2], True)
     elif action[0] == Act.CITY:
@@ -269,7 +266,6 @@ def find_moves(gb: dict, turn: int) -> list:
     # TODO: HIdx.PORTS.value needs to be properly implemented & maintained elsewhere in code for this to be implemented
     # trade_types = []
     # gen_trade_possible = False
-    # # TODO: if a player has a 3:1, are they allowed to choose a 4:1 bank trade?; currently not allowed
     # # Check all 2:1 ports
     # for i in range(5):
     #     if gb["hands"][offset + HIdx.PORTS.value] & (1 << i):  # Check for player's access to port
@@ -279,7 +275,6 @@ def find_moves(gb: dict, turn: int) -> list:
     #         gen_trade_possible = True
     # if gen_trade_possible:
     #     trade_types.append(gen_trade_type)
-    #     # TODO: make use of trade_types list
     # if trade_types:
     #     gen_moves.append(Act.BANK_TRADE)
 

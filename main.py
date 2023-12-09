@@ -8,7 +8,7 @@ import util
 from Agents import RandomAgent, HumanAgent, ExpectiminimaxAgent, GreedyRandomAgent, GreedyVPAgent
 from GameBoard import *
 from util import *
-from constants import global_verbose  # TODO: double check that this is properly modified for all files
+from constants import global_verbose  # TODO: fix usage of global_verbose
 
 
 global_verbose = False
@@ -61,7 +61,6 @@ def main():
             print("Error loading file")
             print(e)
             return
-        # place_init_settlements(game_board)  # TODO: implement loading from json
     elif args.justlayout:
         # load json file, but only use tokens and hex layout; reinitialize everything else
         if global_verbose:
@@ -156,10 +155,8 @@ async def wait_for_human_player(websocket, gb):
                 # Resetting game state
                 return (Act.RESET,)
 
-            # TODO: implement all human actions
             else:
                 return (Act.END_TURN,)
-    # TODO: proper processing/validity checking of action
     return (Act.END_TURN,)
 
 
@@ -259,6 +256,8 @@ def run_games(args):
             agent_type = "GreedyRandom"
         elif args.players[pidx] == "E":
             agent_type = "Expectiminimax"
+        elif args.players[pidx] == "V":
+            agent_type = "GreedyVP"
         else:
             agent_type = "Unknown"
         agent_tabbing = "\t" if len(agent_type) > 7 else "\t\t"

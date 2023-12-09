@@ -366,8 +366,6 @@ class GameBoard {
         // uncomment below line to initialize board before establishing connection to server (testing purposes)
         // this.reinit()
         this.active_action = "";
-        // TODO: find better method of click detection
-        // TODO: create hover lists for each type of clickable item (ports, hexes, vertices, edges)
         this.hoverLists = {
             // Ports list
             "trade_btn": [],
@@ -1160,7 +1158,6 @@ class PlayerHand {
                 ctx.fillText(`P${this.id}  ${this.vps} VP`, wFactor * (this.x+DRAWING_SCALE*0.3), hFactor * (this.y + this.height));
             }
         } else {
-            // TODO: find better way of indicating current player in bank
             ctx.font = `bold ${DRAWING_SCALE * 1.2 * wFactor}px Arial`;
             ctx.fillStyle = 'black';
             ctx.textAlign = 'left';
@@ -1595,7 +1592,6 @@ function gen_socket_listeners(socket) {
                 } else {
                     console.log("Received notification: " + data.message);
                 }
-                // TODO: give actual notification
                 break;
             default:
                 console.error("Invalid message type: ", data.type);
@@ -1617,7 +1613,6 @@ function gen_socket_listeners(socket) {
             closeModal();
             return;
         }
-        // TODO: register action clicks & send action to server
         if(e.target.classList.contains('act_button')) {
             let action = e.target.id;
             console.log("Clicked button: " + action);
@@ -1663,7 +1658,6 @@ function gen_socket_listeners(socket) {
                     }));
                     // Reset active action
                     gameBoard.active_action = "";
-                    // TODO: redraw?
                     break;
                 }
             }
