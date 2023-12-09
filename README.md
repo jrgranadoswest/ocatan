@@ -44,7 +44,7 @@ of non-gui games, the program will output statistics.
 python main.py -p VGR -s 4 -n -g 100
 ```
 This command will run a game of the frontend controlled by a human versus
-the victory-point greedy agent and two random agents.
+the victory-point greedy agent and two random agents. Note that the frontend is designed to look best when in full-screen on a 16:9 display. Hitting F11 to enter fullscreen is the optimal way to use the frontend.
 ```
 python main.py -p HVRR
 ```
