@@ -125,6 +125,7 @@ currently to achieve decent results while being as efficient as possible
 * Use of the monopoly and year of plenty cards are not yet implemented, so when
 they are bought they are essentially duds
 * Currently, only 4:1 bank trades are functioning
+* This project was primarily tested on a single linux system with Firefox for the frontend browser. This shouldn't cause issues for the most part, but the frontend might display things like the text font somewhat differently.
 
 
 ## Troubleshooting
