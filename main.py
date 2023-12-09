@@ -11,11 +11,11 @@ from util import *
 from constants import global_verbose  # TODO: double check that this is properly modified for all files
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Conquerors of Catan")
+global_verbose = False
 
-    #  # Argument to specify the JSON file path
-    #  parser.add_argument('test_arg', help='Test args')
+def main():
+    global global_verbose
+    parser = argparse.ArgumentParser(description="Conquerors of Catan")
 
     # Optional arguments
     parser.add_argument('-v', '--verbose', action='store_true', help='verbose output')
@@ -33,7 +33,7 @@ def main():
     parser.add_argument('-r', '--readrecord', type=str, help='Game file to replay')
     parser.add_argument('-a', '--autosteps', action='store_true', help='Automatically step through replay',
                         default=False)
-    parser.add_argument('-b', '--beginnerboard', action='store_true', help='Use beginner board layout', default=False)
+    # parser.add_argument('-b', '--beginnerboard', action='store_true', help='Use beginner board layout', default=False)
 
     args = parser.parse_args()
     random.seed(args.seed)
@@ -47,11 +47,11 @@ def main():
         run_games(args)
         return
     # Otherwise, run with GUI
-    if args.beginnerboard:
-        global_verbose = True
-        # game_board = generate_beginner_board(len(args.players))
-        game_board = generate_new_board(len(args.players))
-    elif args.loadstate:
+    # if args.beginnerboard:
+    #     global_verbose = True
+    #     # game_board = generate_beginner_board(len(args.players))
+    #     game_board = generate_new_board(len(args.players))
+    if args.loadstate:
         # ex file: board_state_1701364167.json
         if global_verbose:
             print("Loading game state from file")
