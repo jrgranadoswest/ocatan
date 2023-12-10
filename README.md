@@ -32,16 +32,17 @@ players and their agent type with the '-p <players string>' argument. All of the
 optional arguments are important for running the program with different settings. 
 
 Here are some example commands to get you started:
-This runs a game of expectimax vs random with random seed=4 for reproduction, -n for no 
-gui, and -g 1 to just restate the default of running a single game.
+This runs a game of expectimax vs random with random seed=42 for reproduction, `-n` for no 
+gui, and `-g 1` is just restating the default of running a single game.
 ```
-python main.py -p ER -s 4 -n -g 1
+python main.py -p ER --seed 42 -n -g 1
 ```
 The below command runs a game of the Victory-Point greedy agent vs the random 
 greedy agent and two other random agents, for 100 games. After running any number 
-of non-gui games, the program will output statistics.
+of non-gui games, the program will output statistics. With the `-s` option it will also
+save stats to `stats.csv`.
 ```
-python main.py -p VGR -s 4 -n -g 100
+python main.py -p VGR --seed 0 -n -g 100 -s
 ```
 This command will run a game of the frontend controlled by a human versus
 the victory-point greedy agent and two random agents. Note that the frontend is designed to look best when in full-screen on a 16:9 display. Hitting F11 to enter fullscreen is the optimal way to use the frontend.
@@ -49,7 +50,7 @@ the victory-point greedy agent and two random agents. Note that the frontend is 
 python main.py -p HVRR
 ```
 This command will run a saved game from file, that was saved in a previous run of 
-the program. Note that we use the '-a' argument to have it automatically play 
+the program. Note that we use the `-a` argument to have it automatically play 
 through the entire game for our review, rather than the default of waiting for 
 us to click "End Turn" in the frontend to step through the game.
 ```
@@ -106,6 +107,7 @@ files:
 ├── README.md
 ├── games/              # Saved .json games for replay/review; not tracked by git
 ├── boards/             # Saved .json board states for reuse/continuation; not tracked by git
+├── stats.csv           # Saved game statistics; not tracked by git
 ├── requirements.txt    # Python pip requirements
 └── util.py             # Variety of utility fns; overlap with GameBoard.py
 ```
@@ -127,7 +129,7 @@ currently to achieve decent results while being as efficient as possible
 * Use of the monopoly and year of plenty cards are not yet implemented, so when
 they are bought they are essentially duds
 * Currently, only 4:1 bank trades are functioning
-* This project was primarily tested on a single linux system with Firefox for the frontend browser. This shouldn't cause issues for the most part, but the frontend might display things like the text font somewhat differently.
+* This project was primarily tested on a single linux system with Firefox for the frontend browser. This shouldn't cause issues for the most part, but other systems might display frontend elements like text font somewhat differently.
 
 
 ## Troubleshooting
