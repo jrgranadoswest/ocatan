@@ -1658,6 +1658,8 @@ function gen_socket_listeners(socket) {
                     }));
                     // Reset active action
                     gameBoard.active_action = "";
+                    // Redraw to remove hover highlights
+                    gameBoard.draw();
                     break;
                 }
             }

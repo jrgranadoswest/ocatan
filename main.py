@@ -10,8 +10,8 @@ from GameBoard import *
 from util import *
 from constants import global_verbose  # TODO: fix usage of global_verbose
 
-
 global_verbose = False
+
 
 def main():
     global global_verbose
@@ -23,36 +23,35 @@ def main():
     parser.add_argument('-p', '--players', type=str, help='N character string for N players', default="HGGG")
     parser.add_argument('-g', '--num-games', type=int, help='Number of games to run', default=1)
     # random seed option for reproducibility
-    parser.add_argument('--seed', type=int, help='Random seed', default=0)
+    parser.add_argument('--seed', type=int, help='Random seed', default=None)
     parser.add_argument('-m', '--maxturns', type=int, help='Max turns per game', default=2000)
 
     # Saving & loading game files
-    parser.add_argument('-l', '--loadstate', type=str, help='Load game state from file')
-    parser.add_argument('-j', '--justlayout', type=str, help='Save game state to file')
+    parser.add_argument('-l', '--loadstate', type=str, help='Load full game state from file', default=None)
+    parser.add_argument('-j', '--justlayout', type=str, help='Load game layout from file for newly initialized game',
+                        default=None)
     parser.add_argument('-w', '--writerecord', action='store_true', help='Record game state to file', default=False)
-    parser.add_argument('-r', '--readrecord', type=str, help='Game file to replay')
+    parser.add_argument('-r', '--replayrecord', type=str, help='Game file to replay', default=None)
     parser.add_argument('-a', '--autosteps', action='store_true', help='Automatically step through replay',
                         default=False)
     parser.add_argument('-s', '--savestats', action='store_true', help='Save game statistics', default=False)
-    # parser.add_argument('-b', '--beginnerboard', action='store_true', help='Use beginner board layout', default=False)
+    parser.add_argument('-b', '--beginnerboard', action='store_true', help='Use beginner board layout', default=None)
 
     args = parser.parse_args()
-    random.seed(args.seed)
+    if args.seed is not None:
+        random.seed(args.seed)
     if len(args.players) < 2 or len(args.players) > 4:
-        parser.exit(1, "Invalid number of players")
+        parser.exit(1, "Number of players must be in range [2, 4]\n")
+    if [args.loadstate, args.justlayout, args.replayrecord, args.beginnerboard].count(None) < 3:
+        parser.exit(1, "Cannot use multiple game-loading options simultaneously\n")
     if args.verbose:
         global_verbose = True
-    if args.nogui:
-        # TODO: implement non-gui loadstate
-        # Run games with no GUI, therefore no human players
-        run_games(args)
-        return
-    # Otherwise, run with GUI
-    # if args.beginnerboard:
-    #     global_verbose = True
-    #     # game_board = generate_beginner_board(len(args.players))
-    #     game_board = generate_new_board(len(args.players))
-    if args.loadstate:
+
+    # Create game board
+    if args.beginnerboard:
+        print("Using beginner board layout")
+        game_board = generate_beginner_board(len(args.players))
+    elif args.loadstate:
         # ex file: board_state_1701364167.json
         if global_verbose:
             print("Loading game state from file")
@@ -63,7 +62,7 @@ def main():
             print(e)
             return
     elif args.justlayout:
-        # load json file, but only use tokens and hex layout; reinitialize everything else
+        # load json file, but only use tokens and hex layout; reinitialize everything else for new game
         if global_verbose:
             print("Loading game state from file")
         try:
@@ -78,10 +77,18 @@ def main():
             print("Generating new game state")
         game_board = generate_new_board(len(args.players))
 
-    if args.readrecord:
+    if args.nogui:
+        # No-gui games; run in terminal only
+        # TODO: implement non-gui loadstate
+        # Run games with no GUI, therefore no human players
+        run_games(args)
+        return
+
+    if args.replayrecord:
         # Replay game from file
         print("Waiting for frontend to connect...")
-        start_server = websockets.serve(lambda ws, path: replay_game(ws, path, args.readrecord, args.autosteps), "localhost", 8080)
+        start_server = websockets.serve(lambda ws, path: replay_game(ws, path, args.replayrecord, args.autosteps),
+                                        "localhost", 8080)
         if global_verbose:
             print("server started")
         asyncio.get_event_loop().run_until_complete(start_server)
@@ -91,8 +98,6 @@ def main():
         return
 
     # Normal case with GUI
-    # args.num_games = 100
-    # run_games(args)
     start_server = websockets.serve(lambda ws, path: websocket_server(ws, path, game_board, args.players), "localhost",
                                     8080)
     if global_verbose:
@@ -221,7 +226,8 @@ def run_games(args):
                     agent_wins[-1] += 1
                     for pidx in range(len(agents)):  # NOTE: /TODO: DNFs will inevitably lower average VPs
                         total_player_vps[pidx] += gb["hands"][pidx * HAND_OFFSET + HIdx.TRUE_VP.value]
-                    opponent_losing_vps[-1] += sum([gb["hands"][pidx * HAND_OFFSET + HIdx.TRUE_VP.value] for pidx in range(len(agents))])
+                    opponent_losing_vps[-1] += sum(
+                        [gb["hands"][pidx * HAND_OFFSET + HIdx.TRUE_VP.value] for pidx in range(len(agents))])
                     break
             num_actions[i] += 1
             take_move(gb, act)
@@ -237,7 +243,8 @@ def run_games(args):
                 print(f"Game saved to file {fp}")
         win_pidx = get_winner(gb)
         agent_wins[win_pidx] += 1
-        opponent_losing_vps[win_pidx] += sum([gb["hands"][pidx * HAND_OFFSET + HIdx.TRUE_VP.value] for pidx in range(len(agents)) if pidx != win_pidx])
+        opponent_losing_vps[win_pidx] += sum(
+            [gb["hands"][pidx * HAND_OFFSET + HIdx.TRUE_VP.value] for pidx in range(len(agents)) if pidx != win_pidx])
         for pidx in range(len(agents)):
             total_player_vps[pidx] += gb["hands"][pidx * HAND_OFFSET + HIdx.TRUE_VP.value]
         print(
@@ -264,7 +271,8 @@ def run_games(args):
             agent_type = "Unknown"
         agent_tabbing = "\t" if len(agent_type) > 7 else "\t\t"
         avg_opp_vps_on_wins = opponent_losing_vps[pidx] / agent_wins[pidx] if agent_wins[pidx] > 0 else 0
-        print(f"{agent_type}{agent_tabbing}{pidx}\t{agent_wins[pidx]}\t{agent_wins[pidx] / args.num_games * 100:.1f}%\t{total_player_vps[pidx] / args.num_games:.2f}\t\t{avg_opp_vps_on_wins:.2f}")
+        print(
+            f"{agent_type}{agent_tabbing}{pidx}\t{agent_wins[pidx]}\t{agent_wins[pidx] / args.num_games * 100:.1f}%\t{total_player_vps[pidx] / args.num_games:.2f}\t\t{avg_opp_vps_on_wins:.2f}")
     avg_vps_on_DNF_games = opponent_losing_vps[-1] / agent_wins[-1] if agent_wins[-1] > 0 else 0
     print(f"DNF \t\t-\t{agent_wins[-1]}\t{agent_wins[-1] / args.num_games * 100:.2f}%\t-\t\t{avg_vps_on_DNF_games}")
     print(f"Average turns per game: {sum(num_turns) / len(num_turns)}")
@@ -276,18 +284,17 @@ def run_games(args):
     stat_list = [[
         args.players, len(agents),
         args.num_games,
-        100 * (args.num_games-agent_wins[-1])/args.num_games,
+        100 * (args.num_games - agent_wins[-1]) / args.num_games,
         "-", "-",
-    ],]
+    ], ]
     for pidx, player in enumerate(agents):
         stat_list.append([str(player), pidx,
                           agent_wins[pidx],
-                          (agent_wins[pidx] / args.num_games)*100,
+                          (agent_wins[pidx] / args.num_games) * 100,
                           total_player_vps[pidx] / args.num_games,
                           opponent_losing_vps[pidx] / agent_wins[pidx] if agent_wins[pidx] > 0 else 0])
     if args.savestats:
         save_stats_to_csv("./stats.csv", stat_list)
-
 
 
 async def websocket_server(websocket, path, gb, players_str):
@@ -361,6 +368,11 @@ async def replay_game(websocket, path, fname, auto_steps=True):
             msg = await websocket.recv()
             msg_obj = json.loads(msg)
             if msg_obj["type"] == "action" and msg_obj["action"] == "end_turn_btn":
+                break
+            elif msg_obj["type"] == "action" and msg_obj["action"] == "reset_game_btn":
+                gb, moves_history = load_game_from_json(fname)
+                await send_init_board_to_frontend(websocket, gb)
+                act_num = 0
                 break
             else:
                 print("Invalid action during game replay")

@@ -1,7 +1,7 @@
 venv/
-games/
+games/*
 __pycache__/
 .idea/
-boards/
+boards/*
 test.py
 stats.csv

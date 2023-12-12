@@ -399,35 +399,72 @@ def gen_tile_arrangement(tile_assortment=(3, 4, 4, 3, 4, 1), num_tiles=19) -> st
 
 def generate_beginner_board(num_players=4):
     """
-    Places initial settlements for each player on the board, based on the catan rulebook beginnner board
+    Places initial settlements for each player on the board, based on the catan rulebook "Starting map for beginners"
     (Meant to be a relatively fair board)
     """
-    brd_state = generate_new_board(num_players)
-    # TODO: complete this
-    place_settlement(brd_state, 0, 9, 15, False)
-    place_settlement(brd_state, 0, 3, 7, False)
-    place_road(brd_state, 0, 9, 14, False)
-    place_road(brd_state, 0, 3, 8, False)
-    place_settlement(brd_state, 1, 9, 9, False)
-    place_settlement(brd_state, 1, 3, 13, False)
-    place_road(brd_state, 1, 9, 10, False)
-    place_road(brd_state, 1, 3, 14, False)
-    place_settlement(brd_state, 2, 5, 3, False)
-    place_settlement(brd_state, 2, 7, 7, False)
-    place_road(brd_state, 2, 5, 4, False)
-    place_road(brd_state, 2, 7, 8, False)
-    place_settlement(brd_state, 3, 5, 17, False)
-    place_settlement(brd_state, 3, 5, 13, False)
-    place_road(brd_state, 3, 5, 12, False)
-    place_road(brd_state, 3, 5, 18, False)
+    new_brd = {
+        "game_cycle_status": 0,
+        "num_players": num_players,
+        "curr_turn": 0,
+        "hex_state": "WGBWGOLOLDLGBWBGLWO",
+        "tkn_state": "B655438830B9A46C92A",
+        "port_orients": "6343665266661665610",
+        "port_type_state": "554053215",
+        "dv1": random.randint(1, 6),
+        "dv2": random.randint(1, 6),
+        "bank": INIT_BANK[:],
+        "hands": [0 for _ in range(HAND_OFFSET * num_players)],
+        "btypemap": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "rbmap0": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "rbmap1": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "rbmap2": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "rbmap3": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "built_map": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    }
+    new_brd["robber_loc"] = new_brd["hex_state"].index("D")
+    new_brd["dice_sum"] = new_brd["dv1"] + new_brd["dv2"]
+    # Map vertices to the resources they produce
+    new_brd["vresmap"] = gen_vertex_resource_map(new_brd["hex_state"], new_brd["tkn_state"], new_brd["port_orients"],
+                                                 new_brd["port_type_state"])
+    new_brd["dv_to_hex_map"] = gen_dv_to_hex_map(new_brd["hex_state"], new_brd["tkn_state"])
+
+    for pidx in range(num_players):
+        new_brd["hands"][pidx * HAND_OFFSET + HIdx.LEN_LNGST_ROAD.value] = 1  # Everyone has 1 road from each settlement
+
+    # Orange
+    place_settlement(new_brd, 0, 3, 7, False)
+    place_road(new_brd, 0, 3, 8, False)
+    place_settlement(new_brd, 0, 9, 11, False)
+    place_road(new_brd, 0, 9, 10, False)
+    # White
+    place_settlement(new_brd, 1, 7, 5, False)
+    place_road(new_brd, 1, 6, 5, False)
+    place_settlement(new_brd, 1, 5, 15, False)
+    place_road(new_brd, 1, 5, 16, False)
+    if num_players > 2:
+        # Blue
+        place_settlement(new_brd, 2, 9, 7, False)
+        place_road(new_brd, 2, 8, 7, False)
+        place_settlement(new_brd, 2, 9, 15, False)
+        place_road(new_brd, 2, 9, 14, False)
+    if num_players > 3:
+        # Red
+        place_settlement(new_brd, 3, 3, 13, False)
+        place_road(new_brd, 3, 3, 12, False)
+        place_settlement(new_brd, 3, 7, 17, False)
+        place_road(new_brd, 3, 7, 16, False)
 
     # Distribute initial resources based on initial settlements
     # step i: 0, 2, 4
     for i in range(0, 5, 2):
-        for pidx, rc_tuple in enumerate([(3, 7), (3, 13), (7, 7), (5, 13)]):
-            res_val = brd_state["vresmap"][rc_tuple][i]
+        for pidx, rc_tuple in enumerate([(9, 11), (5, 15), (9, 15), (7, 17)][0:num_players]):
+
+            res_val = new_brd["vresmap"][rc_tuple][i]
             if res_val != -1:
-                brd_state["hands"][pidx * HAND_OFFSET + res_val] += 1
+                new_brd["hands"][pidx * HAND_OFFSET + res_val] += 1
+                new_brd["bank"][res_val] -= 1
+
+    return new_brd
 
 
 def place_init_settlements(brd_state):
@@ -886,6 +923,8 @@ def save_state_to_json(brd_state_object, fn=""):
     """
     if fn == "":
         fn = "board_state_" + str(int(time.time())) + ".json"
+    if not os.path.exists(BOARD_STATES_DIR):
+        os.makedirs(BOARD_STATES_DIR)
     with open(make_unique_fn(BOARD_STATES_DIR + fn), 'w') as json_file:
         json.dump(filter_dict(brd_state_object), json_file, indent=4)
     return BOARD_STATES_DIR + fn
@@ -895,6 +934,8 @@ def make_unique_fn(fp):
     """
     Checks if a file exists at the given path, and if so, appends a number to the end of the filename to make it
     unique.
+    Preconditions:
+    - Assumes parent directory exists.
     :param fp: Filepath to try.
     :return: Unique filepath, based on given proposed filepath.
     """
@@ -939,6 +980,8 @@ def save_game_to_json(game_state, moves, fn=""):
             saveable_moves.append([move[0].value])
     if fn == "":
         fn = "game_" + str(int(time.time())) + "_.json"
+    if not os.path.exists(GAME_STATES_DIR):
+        os.makedirs(GAME_STATES_DIR)
     with open(make_unique_fn(GAME_STATES_DIR + fn), 'w') as json_file:
         json.dump({"game_state": filter_dict(game_state), "moves": saveable_moves}, json_file, indent=4)
     return GAME_STATES_DIR + fn

@@ -14,6 +14,11 @@ WINNING_VPS = 10  # Number of victory points needed to win
 MAX_ROADS = 15  # Number of roads each player starts with
 MAX_SETTLEMENTS = 5  # Number of settlements each player starts with
 MAX_CITIES = 4  # Number of cities each player starts with
+INIT_BANK = [
+    19, 19, 19, 19, 19,  # Brick grain lumber ore wool
+    14, 5, 2, 2, 2,
+    1, 1,  # Largest army in bank, longest road in bank
+    ]
 
 # Road map, 1 bit for road locations
 RMAP = [
